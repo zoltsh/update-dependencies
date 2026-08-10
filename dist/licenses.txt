@@ -1,0 +1,3 @@
+update-dependencies
+MIT License
+Copyright (c) 2026 zoltsh

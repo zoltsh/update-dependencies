@@ -1,0 +1,33 @@
+{
+  "name": "update-dependencies",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Open pull requests for Zolt dependency updates.",
+  "author": "zoltsh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zoltsh/update-dependencies.git"
+  },
+  "homepage": "https://github.com/zoltsh/update-dependencies#readme",
+  "bugs": {
+    "url": "https://github.com/zoltsh/update-dependencies/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "bundle:check": "node scripts/check-bundle.mjs",
+    "check": "npm run typecheck && npm run lint && npm test && npm run bundle:check && node scripts/check-repository.mjs",
+    "lint": "node scripts/lint.mjs",
+    "test": "node scripts/build-tests.mjs && node --test --test-reporter spec dist-test/test/*.test.js",
+    "typecheck": "tsc --noEmit",
+    "platform:check": "node scripts/check-platform.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "6.0.3"
+  }
+}

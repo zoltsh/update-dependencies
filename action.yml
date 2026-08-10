@@ -1,0 +1,71 @@
+name: Update Zolt dependencies
+description: Safely plan pull requests for Zolt dependency updates
+author: zoltsh
+
+inputs:
+  directory:
+    description: Project directory or any directory within the target Zolt workspace
+    required: false
+    default: .
+  workspace:
+    description: "Workspace behavior: auto, true, or false"
+    required: false
+    default: auto
+  github-token:
+    description: Token reserved for future managed branch and pull request operations; never passed to Zolt
+    required: false
+    default: ${{ github.token }}
+  update-ceiling:
+    description: "Largest allowed update class: patch, minor, or major"
+    required: false
+    default: minor
+  include-prereleases:
+    description: Allow prerelease versions as update targets
+    required: false
+    default: "false"
+  selectors:
+    description: Newline-separated coordinate, alias, section, or member selectors
+    required: false
+  open-pull-requests-limit:
+    description: Maximum number of update targets selected in one run
+    required: false
+    default: "5"
+  registry-env:
+    description: Newline-separated repository credential environment variable names passed to Zolt
+    required: false
+  dry-run:
+    description: Plan and summarize updates without creating branches or pull requests
+    required: false
+    default: "true"
+
+outputs:
+  planned-update-count:
+    description: Number of update targets selected by policy
+  deferred-update-count:
+    description: Number of eligible targets deferred by the pull request limit
+  blocked-update-count:
+    description: Number of unknown or currently non-writable targets
+  plan:
+    description: Deterministic JSON array of selected update targets
+  created-pull-request-count:
+    description: Pull requests created; always zero in the planning preview
+  updated-pull-request-count:
+    description: Pull requests refreshed; always zero in the planning preview
+  closed-pull-request-count:
+    description: Pull requests closed; always zero in the planning preview
+  created-pull-request-count:
+    description: Number of pull requests created; always zero in the planning batch
+  updated-pull-request-count:
+    description: Number of pull requests refreshed; always zero in the planning batch
+  closed-pull-request-count:
+    description: Number of pull requests closed; always zero in the planning batch
+  zolt-version:
+    description: Exact verified Zolt version used by the action
+
+runs:
+  using: node24
+  main: dist/index.js
+
+branding:
+  icon: refresh-cw
+  color: purple
