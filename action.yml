@@ -53,12 +53,6 @@ outputs:
     description: Pull requests refreshed; always zero in the planning preview
   closed-pull-request-count:
     description: Pull requests closed; always zero in the planning preview
-  created-pull-request-count:
-    description: Number of pull requests created; always zero in the planning batch
-  updated-pull-request-count:
-    description: Number of pull requests refreshed; always zero in the planning batch
-  closed-pull-request-count:
-    description: Number of pull requests closed; always zero in the planning batch
   zolt-version:
     description: Exact verified Zolt version used by the action
 

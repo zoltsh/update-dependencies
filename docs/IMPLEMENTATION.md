@@ -8,7 +8,7 @@ The repository currently implements the safe planning half of
 - Node 24 Action metadata and zero-runtime-dependency TypeScript codebase.
 - Default-branch event enforcement.
 - Exact-commit, dirty-checkout-independent repository reconstruction.
-- Repository path, mode, size, and case-collision validation.
+- Repository path, mode, size, case-collision, and post-analysis Git-blob validation.
 - Four-target checksum-pinned Zolt release metadata.
 - Bounded gzip/tar inspection and extraction without a runtime archive package.
 - Exact Zolt version verification.
