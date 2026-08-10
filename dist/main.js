@@ -41,6 +41,7 @@ export async function runAction(dependencies = {}) {
         zoltEnvironment = await (dependencies.createEnvironment ?? createZoltEnvironment)(environment, inputs.registryEnv, inputs.githubToken, registerSecret);
         installed = await (dependencies.install ?? installZolt)(target, { environment });
         const report = await (dependencies.capture ?? captureOutdated)(installed.binary, inputs, selection, zoltEnvironment.environment);
+        await repository.verify();
         const plan = (dependencies.plan ?? planUpdates)(report, selection, inputs);
         const previews = plan.selected.map((planned) => ({
             preview: renderPullRequestPreview(planned),

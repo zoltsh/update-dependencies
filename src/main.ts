@@ -74,6 +74,7 @@ export async function runAction(dependencies: ActionDependencies = {}): Promise<
             selection,
             zoltEnvironment.environment,
         );
+        await repository.verify();
         const plan = (dependencies.plan ?? planUpdates)(report, selection, inputs);
         const previews = plan.selected.map((planned) => ({
             preview: renderPullRequestPreview(planned),

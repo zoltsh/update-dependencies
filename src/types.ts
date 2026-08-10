@@ -67,6 +67,7 @@ export interface RepositoryView {
     readonly directoryInput: string;
     readonly workspace: string;
     cleanup(): Promise<void>;
+    verify(): Promise<void>;
 }
 
 export interface ZoltProjectSelection {

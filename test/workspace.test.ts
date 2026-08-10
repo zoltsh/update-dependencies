@@ -46,6 +46,7 @@ function repository(workspace: string, directory: string, directoryInput: string
     return {
         cleanup: async () => undefined,
         directory,
+        verify: async () => undefined,
         directoryInput,
         workspace,
     };

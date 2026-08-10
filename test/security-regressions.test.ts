@@ -23,6 +23,7 @@ const execution: ExecutionContext = {
 
 const repository: RepositoryView = {
     cleanup: async () => undefined,
+    verify: async () => undefined,
     directory: '/private/repository',
     directoryInput: '.',
     workspace: '/private/repository',
@@ -51,7 +52,7 @@ test('selectZoltProject reports both workspace formats at the repository root', 
     await writeFile(join(root, 'zolt.lock'), 'version = 5\n', 'utf8');
 
     await assert.rejects(
-        selectZoltProject({ cleanup: async () => undefined, directory: root, directoryInput: '.', workspace: root }, 'auto'),
+        selectZoltProject({ cleanup: async () => undefined, verify: async () => undefined, directory: root, directoryInput: '.', workspace: root }, 'auto'),
         /Workspace at \. declares both/u,
     );
 });

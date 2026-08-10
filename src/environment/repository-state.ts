@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
-import { lstat, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { lstat, mkdir, mkdtemp, readdir, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -16,6 +17,7 @@ import type { RepositoryView } from '../types.js';
 
 interface TreeEntry {
     readonly mode: '100644' | '100755';
+    readonly object: string;
     readonly path: string;
     readonly size: number;
 }
@@ -68,6 +70,7 @@ export async function createRepositoryView(
         return Object.freeze({
             cleanup: async () => rm(work, { force: true, recursive: true }),
             directory,
+            verify: async () => verifyExtractedTree(privateWorkspace, entries),
             directoryInput: input.directory,
             workspace: privateWorkspace,
         });
@@ -106,10 +109,10 @@ async function readTree(repository: string, sha: string): Promise<readonly TreeE
     let totalBytes = 0;
     for (const record of result.stdout.split('\0')) {
         if (record === '') continue;
-        const match = /^([0-7]{6}) (blob|commit) ([0-9a-f]{40,64}) +([0-9]+|-)\t([\s\S]+)$/u.exec(record);
+        const match = /^([0-7]{6}) (blob|commit) ((?:[0-9a-f]{40}|[0-9a-f]{64})) +([0-9]+|-)\t([\s\S]+)$/u.exec(record);
         if (match === null) throw actionError('ZOLT-REPOSITORY-003', 'Could not decode the Git tree listing.');
-        const [, mode, type, , sizeText, entryPath] = match;
-        if (entryPath === undefined || mode === undefined || type === undefined || sizeText === undefined) {
+        const [, mode, type, object, sizeText, entryPath] = match;
+        if (entryPath === undefined || mode === undefined || type === undefined || object === undefined || sizeText === undefined) {
             throw actionError('ZOLT-REPOSITORY-003', 'Could not decode the Git tree listing.');
         }
         validateTreePath(entryPath);
@@ -141,7 +144,7 @@ async function readTree(repository: string, sha: string): Promise<readonly TreeE
             );
         }
         caseFolded.add(folded);
-        entries.push({ mode, path: entryPath, size });
+        entries.push({ mode, object, path: entryPath, size });
         if (entries.length > MAX_REPOSITORY_VIEW_ENTRIES) {
             throw actionError('ZOLT-REPOSITORY-008', 'Repository exceeds the immutable-view entry limit.');
         }
@@ -184,22 +187,83 @@ async function createArchive(repository: string, sha: string, destination: strin
 }
 
 async function verifyExtractedTree(root: string, entries: readonly TreeEntry[]): Promise<void> {
-    for (const entry of entries) {
-        const candidate = containedPath(root, entry.path);
-        const info = await lstat(candidate);
-        const executable = (info.mode & 0o111) !== 0;
-        if (
-            !info.isFile()
-            || info.isSymbolicLink()
-            || info.size !== entry.size
-            || executable !== (entry.mode === '100755')
-        ) {
-            throw actionError(
-                'ZOLT-REPOSITORY-009',
-                `Immutable repository entry changed during extraction: ${entry.path}.`,
-            );
+    const expectedFiles = new Map(entries.map((entry) => [entry.path, entry]));
+    const expectedDirectories = expectedDirectoryPaths(entries);
+    const seenFiles = new Set<string>();
+    const seenDirectories = new Set<string>();
+    await visit(root, '');
+    if (seenFiles.size !== expectedFiles.size || seenDirectories.size !== expectedDirectories.size) {
+        throw actionError('ZOLT-REPOSITORY-009', 'The immutable repository view gained or lost entries during analysis.');
+    }
+    for (const path of expectedFiles.keys()) {
+        if (!seenFiles.has(path)) {
+            throw actionError('ZOLT-REPOSITORY-009', `Immutable repository entry changed during analysis: ${path}.`);
         }
     }
+    for (const path of expectedDirectories) {
+        if (!seenDirectories.has(path)) {
+            throw actionError('ZOLT-REPOSITORY-009', `Immutable repository directory changed during analysis: ${path}.`);
+        }
+    }
+
+    async function visit(directory: string, prefix: string): Promise<void> {
+        const children = await readdir(directory, { withFileTypes: true });
+        children.sort((left, right) => left.name.localeCompare(right.name));
+        for (const child of children) {
+            const path = prefix === '' ? child.name : `${prefix}/${child.name}`;
+            validateTreePath(path);
+            const candidate = containedPath(root, path);
+            const info = await lstat(candidate);
+            if (info.isSymbolicLink()) {
+                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository entry became a symbolic link: ${path}.`);
+            }
+            if (info.isDirectory()) {
+                if (!expectedDirectories.has(path)) {
+                    throw actionError('ZOLT-REPOSITORY-009', `Immutable repository view contains an unexpected directory: ${path}.`);
+                }
+                seenDirectories.add(path);
+                await visit(candidate, path);
+                continue;
+            }
+            if (!info.isFile()) {
+                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository view contains an unsupported entry: ${path}.`);
+            }
+            const entry = expectedFiles.get(path);
+            if (entry === undefined || seenFiles.has(path)) {
+                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository view contains an unexpected file: ${path}.`);
+            }
+            const executable = (info.mode & 0o111) !== 0;
+            if (info.size !== entry.size || executable !== (entry.mode === '100755')) {
+                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository entry changed during analysis: ${path}.`);
+            }
+            if (await gitBlobId(candidate, info.size, entry.object.length) !== entry.object) {
+                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository bytes changed during analysis: ${path}.`);
+            }
+            seenFiles.add(path);
+        }
+    }
+}
+
+function expectedDirectoryPaths(entries: readonly TreeEntry[]): ReadonlySet<string> {
+    const directories = new Set<string>();
+    for (const entry of entries) {
+        const parts = entry.path.split('/');
+        for (let index = 1; index < parts.length; index += 1) {
+            directories.add(parts.slice(0, index).join('/'));
+        }
+    }
+    return directories;
+}
+
+async function gitBlobId(path: string, size: number, objectLength: number): Promise<string> {
+    const algorithm = objectLength === 40 ? 'sha1' : objectLength === 64 ? 'sha256' : undefined;
+    if (algorithm === undefined) {
+        throw actionError('ZOLT-REPOSITORY-003', 'The repository uses an unsupported Git object format.');
+    }
+    const digest = createHash(algorithm);
+    digest.update(`blob ${size.toString()}\0`, 'utf8');
+    for await (const chunk of createReadStream(path)) digest.update(chunk as Buffer);
+    return digest.digest('hex');
 }
 
 function validateExpectedSha(value: string): void {

@@ -19,6 +19,7 @@ const execution: ExecutionContext = {
 };
 const repository: RepositoryView = {
     cleanup: async () => undefined,
+    verify: async () => undefined,
     directory: '/private/repository',
     directoryInput: '.',
     workspace: '/private/repository',
@@ -34,6 +35,7 @@ const selection: ZoltProjectSelection = {
 test('runAction produces a deterministic planning summary and output without write operations', async () => {
     const core = new FakeActionCore({ 'github-token': 'github-token-value' });
     const cleanups: string[] = [];
+    let verified = false;
     const installed: InstalledZolt = {
         binary: '/verified/zolt',
         cleanup: async () => { cleanups.push('install'); },
@@ -51,7 +53,11 @@ test('runAction produces a deterministic planning summary and output without wri
         capture: async () => outdatedReport(),
         core,
         createEnvironment: async () => zoltEnvironment,
-        createRepository: async () => ({ ...repository, cleanup: async () => { cleanups.push('repository'); } }),
+        createRepository: async () => ({
+            ...repository,
+            cleanup: async () => { cleanups.push('repository'); },
+            verify: async () => { verified = true; },
+        }),
         environment: {},
         install: async () => installed,
         platform: 'linux',
@@ -63,6 +69,7 @@ test('runAction produces a deterministic planning summary and output without wri
     assert.equal(core.outputs.get('planned-update-count'), 1);
     assert.equal(core.outputs.get('created-pull-request-count'), 0);
     assert.match(core.summaries[0] ?? '', /Planning preview: no branches or pull requests were written/u);
+    assert.equal(verified, true);
     assert.deepEqual(cleanups, ['environment', 'install', 'repository']);
 });
 
