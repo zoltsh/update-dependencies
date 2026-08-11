@@ -16,16 +16,40 @@ export async function selectZoltProject(
     repository: RepositoryView,
     workspaceMode: WorkspaceMode,
 ): Promise<ZoltProjectSelection> {
-    if (workspaceMode === 'false') return standalone(repository, repository.directory);
-    const workspaceRoot = await discoverWorkspace(repository);
-    if (workspaceRoot !== undefined) return workspace(repository, workspaceRoot);
+    const canonicalRepository = await resolveRepositoryPaths(repository);
+    if (workspaceMode === 'false') return standalone(canonicalRepository, canonicalRepository.directory);
+    const workspaceRoot = await discoverWorkspace(canonicalRepository);
+    if (workspaceRoot !== undefined) return workspace(canonicalRepository, workspaceRoot);
     if (workspaceMode === 'true') {
         throw new UpdateDependenciesError(
             'ZOLT-WORKSPACE-001',
-            `No Zolt workspace was found from ${repository.directoryInput}. Expected zolt.toml with [workspace] or zolt-workspace.toml.`,
+            `No Zolt workspace was found from ${canonicalRepository.directoryInput}. Expected zolt.toml with [workspace] or zolt-workspace.toml.`,
         );
     }
-    return standalone(repository, repository.directory);
+    return standalone(canonicalRepository, canonicalRepository.directory);
+}
+
+async function resolveRepositoryPaths(repository: RepositoryView): Promise<RepositoryView> {
+    try {
+        const [workspace, directory] = await Promise.all([
+            realpath(repository.workspace),
+            realpath(repository.directory),
+        ]);
+        if (!contained(workspace, directory)) {
+            throw new UpdateDependenciesError(
+                'ZOLT-WORKSPACE-003',
+                `Project root is outside the repository view: ${repository.directory}.`,
+            );
+        }
+        return { ...repository, directory, workspace };
+    } catch (error) {
+        if (error instanceof UpdateDependenciesError) throw error;
+        throw new UpdateDependenciesError(
+            'ZOLT-WORKSPACE-005',
+            'Could not resolve the repository view.',
+            { cause: error },
+        );
+    }
 }
 
 async function discoverWorkspace(repository: RepositoryView): Promise<WorkspaceLocation | undefined> {

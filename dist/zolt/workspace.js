@@ -4,15 +4,33 @@ import { UpdateDependenciesError } from '../errors.js';
 const MAX_CONFIG_BYTES = 4 * 1024 * 1024;
 const WORKSPACE_TABLE = /^\s*\[\s*workspace\s*\]\s*(?:#.*)?$/mu;
 export async function selectZoltProject(repository, workspaceMode) {
+    const canonicalRepository = await resolveRepositoryPaths(repository);
     if (workspaceMode === 'false')
-        return standalone(repository, repository.directory);
-    const workspaceRoot = await discoverWorkspace(repository);
+        return standalone(canonicalRepository, canonicalRepository.directory);
+    const workspaceRoot = await discoverWorkspace(canonicalRepository);
     if (workspaceRoot !== undefined)
-        return workspace(repository, workspaceRoot);
+        return workspace(canonicalRepository, workspaceRoot);
     if (workspaceMode === 'true') {
-        throw new UpdateDependenciesError('ZOLT-WORKSPACE-001', `No Zolt workspace was found from ${repository.directoryInput}. Expected zolt.toml with [workspace] or zolt-workspace.toml.`);
+        throw new UpdateDependenciesError('ZOLT-WORKSPACE-001', `No Zolt workspace was found from ${canonicalRepository.directoryInput}. Expected zolt.toml with [workspace] or zolt-workspace.toml.`);
     }
-    return standalone(repository, repository.directory);
+    return standalone(canonicalRepository, canonicalRepository.directory);
+}
+async function resolveRepositoryPaths(repository) {
+    try {
+        const [workspace, directory] = await Promise.all([
+            realpath(repository.workspace),
+            realpath(repository.directory),
+        ]);
+        if (!contained(workspace, directory)) {
+            throw new UpdateDependenciesError('ZOLT-WORKSPACE-003', `Project root is outside the repository view: ${repository.directory}.`);
+        }
+        return { ...repository, directory, workspace };
+    }
+    catch (error) {
+        if (error instanceof UpdateDependenciesError)
+            throw error;
+        throw new UpdateDependenciesError('ZOLT-WORKSPACE-005', 'Could not resolve the repository view.', { cause: error });
+    }
 }
 async function discoverWorkspace(repository) {
     let current = repository.directory;

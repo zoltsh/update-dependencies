@@ -1,5 +1,5 @@
 import * as assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -42,6 +42,26 @@ test('selectZoltProject supports legacy workspaces and standalone projects', asy
     assert.equal(standalone.manifestPath, 'standalone/zolt.toml');
 });
 
+test('selectZoltProject canonicalizes repository path aliases', async (context) => {
+    const temporary = await mkdtemp(join(tmpdir(), 'zolt-workspace-alias-test-'));
+    context.after(async () => rm(temporary, { force: true, recursive: true }));
+    const physicalRoot = join(temporary, 'physical');
+    const aliasedRoot = join(temporary, 'alias');
+    await mkdir(join(physicalRoot, 'member'), { recursive: true });
+    await writeFile(join(physicalRoot, 'zolt.toml'), '[workspace]\nmembers = ["member"]\n', 'utf8');
+    await writeFile(join(physicalRoot, 'zolt.lock'), 'version = 5\n', 'utf8');
+    await writeFile(join(physicalRoot, 'member', 'zolt.toml'), '[project]\nname = "member"\n', 'utf8');
+    await symlink(physicalRoot, aliasedRoot, 'dir');
+
+    const selection = await selectZoltProject(
+        repository(aliasedRoot, join(aliasedRoot, 'member'), 'member'),
+        'true',
+    );
+    assert.equal(selection.mode, 'workspace');
+    assert.equal(selection.root, await realpath(physicalRoot));
+    assert.equal(selection.manifestPath, 'zolt.toml');
+    assert.equal(selection.lockfilePath, 'zolt.lock');
+});
 
 function repository(workspace: string, directory: string, directoryInput: string) {
     return repositoryView({ directory, directoryInput, workspace });
