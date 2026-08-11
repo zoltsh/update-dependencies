@@ -1,6 +1,7 @@
-import { lstat, readFile, realpath } from 'node:fs/promises';
+import { lstat, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { UpdateDependenciesError } from '../errors.js';
+import { BoundedFileError, readBoundedRegularFile } from '../files.js';
 const MAX_CONFIG_BYTES = 4 * 1024 * 1024;
 const WORKSPACE_TABLE = /^\s*\[\s*workspace\s*\]\s*(?:#.*)?$/mu;
 export async function selectZoltProject(repository, workspaceMode) {
@@ -99,11 +100,16 @@ async function regularFileInside(candidate, workspaceRoot) {
     }
 }
 async function containsWorkspaceTable(candidate) {
-    const info = await lstat(candidate);
-    if (info.size > MAX_CONFIG_BYTES) {
-        throw new UpdateDependenciesError('ZOLT-WORKSPACE-006', `Zolt config exceeds ${MAX_CONFIG_BYTES.toString()} bytes.`);
+    try {
+        const file = await readBoundedRegularFile(candidate, MAX_CONFIG_BYTES);
+        return WORKSPACE_TABLE.test(file.content.toString('utf8'));
     }
-    return WORKSPACE_TABLE.test(await readFile(candidate, 'utf8'));
+    catch (error) {
+        if (error instanceof BoundedFileError && error.failure === 'too-large') {
+            throw new UpdateDependenciesError('ZOLT-WORKSPACE-006', `Zolt config exceeds ${MAX_CONFIG_BYTES.toString()} bytes.`);
+        }
+        throw new UpdateDependenciesError('ZOLT-WORKSPACE-005', `Could not read ${candidate}.`, { cause: error });
+    }
 }
 function repositoryRelative(workspaceRoot, candidate) {
     const value = relative(workspaceRoot, candidate);

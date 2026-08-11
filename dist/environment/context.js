@@ -1,6 +1,6 @@
-import { lstat, readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { actionError } from '../errors.js';
+import { readBoundedRegularFile } from '../files.js';
 const MAX_EVENT_BYTES = 1024 * 1024;
 const ALLOWED_EVENTS = new Set(['push', 'schedule', 'workflow_dispatch']);
 export async function readExecutionContext(environment, readEvent = readEventFile) {
@@ -62,17 +62,13 @@ export async function readExecutionContext(environment, readEvent = readEventFil
     };
 }
 async function readEventFile(path) {
-    let info;
     try {
-        info = await lstat(path);
+        const file = await readBoundedRegularFile(path, MAX_EVENT_BYTES);
+        return file.content.toString('utf8');
     }
     catch (error) {
-        throw actionError('ZOLT-EVENT-012', 'Could not inspect GITHUB_EVENT_PATH.', error);
+        throw actionError('ZOLT-EVENT-012', 'GITHUB_EVENT_PATH must be a bounded regular file.', error);
     }
-    if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_EVENT_BYTES) {
-        throw actionError('ZOLT-EVENT-012', 'GITHUB_EVENT_PATH must be a bounded regular file.');
-    }
-    return readFile(path, 'utf8');
 }
 function required(value, name) {
     if (value === undefined || value.trim() === '')
