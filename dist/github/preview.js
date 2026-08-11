@@ -1,7 +1,6 @@
 import { branchSlug } from '../planner/identity.js';
+import { renderManagedMarker } from './managed-marker.js';
 export function renderPullRequestPreview(target) {
-    const branch = `zolt/update/${branchSlug(target.identifier)}-${target.branchHash}`;
-    const title = truncate(`build(deps): bump ${target.identifier} from ${target.currentVersion} to ${target.targetVersion}`, 240);
     const markerPayload = Buffer.from(JSON.stringify({
         authoritativeTarget: target.authoritativeTarget,
         lockfilePath: target.lockfilePath,
@@ -11,6 +10,28 @@ export function renderPullRequestPreview(target) {
         zoltRoot: target.zoltRoot,
     }), 'utf8').toString('base64url');
     const marker = `<!-- zolt-update-dependencies:preview-v2:${markerPayload} -->`;
+    const verification = target.authoritativeTarget
+        ? 'Zolt supplied the canonical target identity and manifest/root-lock paths. The isolated exact-update executor and dormant publication orchestrator are available; public write mode remains disabled until a matching pinned Zolt release and live canaries are complete.'
+        : 'This target came from schema v1. The action will not execute it until the pinned Zolt release supplies canonical schema-v2 identity and paths.';
+    return renderPullRequest(target, marker, verification);
+}
+export function renderManagedPullRequest(target, baseSha, managedHeadSha) {
+    const marker = renderManagedMarker({
+        baseSha,
+        lockfilePath: target.lockfilePath,
+        managedHeadSha,
+        managedId: target.managedId,
+        manifestPath: target.manifestPath,
+        schemaVersion: 1,
+        targetId: target.targetId,
+        targetVersion: target.targetVersion,
+        zoltRoot: target.zoltRoot,
+    });
+    return renderPullRequest(target, marker, 'Zolt supplied the canonical target identity and manifest/root-lock paths. The isolated exact update and locked offline verification completed before this branch was published.');
+}
+function renderPullRequest(target, marker, verification) {
+    const branch = `zolt/update/${branchSlug(target.identifier)}-${target.branchHash}`;
+    const title = truncate(`build(deps): bump ${target.identifier} from ${target.currentVersion} to ${target.targetVersion}`, 240);
     const fanOut = target.fanOut.length === 0
         ? '_This target changes one literal version surface._'
         : target.fanOut.map((value) => `- \`${escapeCode(value)}\``).join('\n');
@@ -18,9 +39,6 @@ export function renderPullRequestPreview(target) {
         ? '_No cross-member attribution was reported._'
         : target.members.map((value) => `- \`${escapeCode(value)}\``).join('\n');
     const identityLabel = target.authoritativeTarget ? 'Zolt target' : 'Preview target';
-    const verification = target.authoritativeTarget
-        ? 'Zolt supplied the canonical target identity and manifest/root-lock paths. The isolated exact-update executor is available; publication remains disabled until a matching pinned Zolt release and the publication orchestrator are enabled together.'
-        : 'This target came from schema v1. The action will not execute it until the pinned Zolt release supplies canonical schema-v2 identity and paths.';
     const body = `## Zolt dependency update
 
 | | |

@@ -52,6 +52,18 @@ export class GitHubRepositoryApi {
         this.#requester = options.requester;
     }
 
+    async getDefaultBranchHead(branch: string): Promise<string | null> {
+        const validated = safeBranchName(branch, 'default branch');
+        const path = validated.split('/').map(encodeURIComponent).join('/');
+        const response = await this.#requester({
+            method: 'GET',
+            path: `${this.#prefix}/git/ref/heads/${path}`,
+        });
+        if (response.status === 404) return null;
+        requireStatus(response.status, [200], 'read the default branch reference');
+        return decodeNestedSha(response.value, ['object', 'sha'], 'default branch reference');
+    }
+
     async getGeneratedBranchHead(branch: string): Promise<string | null> {
         const path = `${this.#prefix}/git/ref/heads/${generatedBranchPath(branch)}`;
         const response = await this.#requester({ method: 'GET', path });

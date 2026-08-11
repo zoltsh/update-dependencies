@@ -33,7 +33,7 @@ ${table('| Manifest | Dependency or alias | Reason |\n| :--- | :--- | :--- |', b
 
 ${table('| Manifest | Dependency or alias | Reason |\n| :--- | :--- | :--- |', outside, '_No available updates were excluded by the selected ceiling._')}
 
-${diagnostics.length === 0 ? '' : `## Zolt diagnostics\n\n${diagnostics.join('\n')}\n\n`}The exact-update artifact executor and managed-PR reconciliation kernel are implemented, but publication remains disabled until a matching Zolt schema-v2 release and the publication orchestrator are enabled together.
+${diagnostics.length === 0 ? '' : `## Zolt diagnostics\n\n${diagnostics.join('\n')}\n\n`}The exact-update executor, managed-PR reconciliation kernel, and dormant publication orchestrator are implemented, but public write mode remains disabled until a matching Zolt schema-v2 release is pinned and live publication canaries pass.
 `;
 }
 function table(header, rows, empty) {

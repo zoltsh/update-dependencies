@@ -153,6 +153,7 @@ test('GitHubRepositoryApi manages refs and pull requests through validated endpo
     const requests: GitHubJsonRequest[] = [];
     const branch = 'zolt/update/demo-0123456789';
     const replies: GitHubJsonResponse[] = [
+        { status: 200, value: { object: { sha: BASE } } },
         { status: 404, value: { message: 'Not Found' } },
         { status: 201, value: { ref: `refs/heads/${branch}` } },
         { status: 200, value: { ref: `refs/heads/${branch}` } },
@@ -171,6 +172,7 @@ test('GitHubRepositoryApi manages refs and pull requests through validated endpo
     ];
     const api = repositoryApi(requests, replies);
 
+    assert.equal(await api.getDefaultBranchHead('main'), BASE);
     assert.equal(await api.getGeneratedBranchHead(branch), null);
     await api.createGeneratedBranch(branch, COMMIT);
     await api.fastForwardGeneratedBranch(branch, COMMIT);
@@ -197,14 +199,15 @@ test('GitHubRepositoryApi manages refs and pull requests through validated endpo
     });
     await api.closePullRequest(18);
 
-    assert.equal(requests[0]?.path, '/repos/zoltsh/demo/git/ref/heads/zolt/update/demo-0123456789');
-    assert.deepEqual(requests[1]?.body, { ref: `refs/heads/${branch}`, sha: COMMIT });
-    assert.deepEqual(requests[2]?.body, { force: false, sha: COMMIT });
+    assert.equal(requests[0]?.path, '/repos/zoltsh/demo/git/ref/heads/main');
+    assert.equal(requests[1]?.path, '/repos/zoltsh/demo/git/ref/heads/zolt/update/demo-0123456789');
+    assert.deepEqual(requests[2]?.body, { ref: `refs/heads/${branch}`, sha: COMMIT });
+    assert.deepEqual(requests[3]?.body, { force: false, sha: COMMIT });
     assert.equal(
-        requests[3]?.path,
+        requests[4]?.path,
         '/repos/zoltsh/demo/pulls?state=open&sort=created&direction=asc&per_page=100&page=1',
     );
-    assert.deepEqual(requests[4]?.body, {
+    assert.deepEqual(requests[5]?.body, {
         base: 'main',
         body: 'body',
         draft: false,
@@ -212,7 +215,7 @@ test('GitHubRepositoryApi manages refs and pull requests through validated endpo
         maintainer_can_modify: false,
         title: 'build(deps): bump demo',
     });
-    assert.deepEqual(requests[6]?.body, { state: 'closed' });
+    assert.deepEqual(requests[7]?.body, { state: 'closed' });
 });
 
 test('canonicalCommitFiles copies bytes and rejects duplicate boundaries', () => {

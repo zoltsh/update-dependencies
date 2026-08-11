@@ -29,7 +29,7 @@ export async function runAction(dependencies = {}) {
         const inputs = readInputs(core, registerSecret);
         const execution = await (dependencies.readContext ?? readExecutionContext)(environment);
         if (!inputs.dryRun) {
-            throw actionError('ZOLT-WRITE-001', 'Write mode remains closed until an immutable Zolt release containing the reviewed exact-target contract is checksum-pinned and the publication orchestrator is enabled. Set dry-run to true.');
+            throw actionError('ZOLT-WRITE-001', 'Write mode remains closed until an immutable Zolt release containing the reviewed exact-target contract is checksum-pinned and the dormant publication orchestrator passes live canaries and is wired into the Action. Set dry-run to true.');
         }
         const target = resolveTarget(dependencies.platform ?? process.platform, dependencies.architecture ?? process.arch);
         repository = await (dependencies.createRepository ?? createRepositoryView)({
