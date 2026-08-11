@@ -1,7 +1,8 @@
-import { lstat, readFile, unlink } from 'node:fs/promises';
+import { lstat, unlink } from 'node:fs/promises';
 
 import { MAX_UPDATE_ARTIFACT_BYTES } from '../constants.js';
 import { actionError } from '../errors.js';
+import { readBoundedRegularFile } from '../files.js';
 import { isCanonicalDigestIdentifier } from '../identifiers.js';
 import {
     canonicalZoltManifestPath,
@@ -220,13 +221,15 @@ async function readArtifactFiles(
     const files: UpdateArtifactFile[] = [];
     for (const path of paths) {
         const absolute = containedFile(workspace, path, 'update artifact path');
-        const info = await lstat(absolute);
-        if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_UPDATE_ARTIFACT_BYTES) {
-            throw actionError('ZOLT-EXECUTE-005', `Update artifact ${path} is not a bounded regular file.`);
+        let file;
+        try {
+            file = await readBoundedRegularFile(absolute, MAX_UPDATE_ARTIFACT_BYTES);
+        } catch (error) {
+            throw actionError('ZOLT-EXECUTE-005', `Update artifact ${path} is not a bounded regular file.`, error);
         }
         files.push(Object.freeze({
-            content: Buffer.from(await readFile(absolute)),
-            mode: (info.mode & 0o111) === 0 ? '100644' : '100755',
+            content: file.content,
+            mode: (file.mode & 0o111) === 0 ? '100644' : '100755',
             path,
         }));
     }
