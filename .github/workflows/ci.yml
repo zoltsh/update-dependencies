@@ -130,6 +130,55 @@ jobs:
           }
           NODE
 
+  zolt-source-contract:
+    name: exact-target source contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out reviewed Zolt source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: zoltsh/zolt
+          ref: ae6532ef804c6347c6b1e72742216b9443c6c288
+          path: zolt-source
+          persist-credentials: false
+
+      - name: Set up GraalVM
+        uses: graalvm/setup-graalvm@bef4b0e916c7dd079bf60fb95d49139f67e32c5f
+        with:
+          distribution: graalvm
+          java-version: "21"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install locked action dependencies
+        run: npm ci
+
+      - name: Package reviewed Zolt source
+        working-directory: zolt-source
+        run: |
+          scripts/bootstrap-zolt-jvm --no-progress toolchain sync
+          scripts/bootstrap-zolt-jvm --no-progress package --workspace --member apps/zolt --cache-root .zolt/cache
+
+      - name: Compile contract tests
+        run: node scripts/build-tests.mjs
+
+      - name: Verify exact-target source contract
+        env:
+          ZOLT_LIVE_BINARY: ${{ github.workspace }}/zolt-source/scripts/run-zolt-built
+          ZOLT_LIVE_SOURCE_COMMIT: ae6532ef804c6347c6b1e72742216b9443c6c288
+        run: node --test --test-reporter spec dist-test/test/live-zolt-contract.test.js
+
   windows-negative:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: windows-2025

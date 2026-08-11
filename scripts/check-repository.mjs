@@ -5,6 +5,7 @@ const root = resolve(import.meta.dirname, '..');
 const action = await readFile(resolve(root, 'action.yml'), 'utf8');
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const packageLock = JSON.parse(await readFile(resolve(root, 'package-lock.json'), 'utf8'));
+const sourceContract = await readFile(resolve(root, 'src/generated/zolt-source-contract.ts'), 'utf8');
 
 requireText(action, 'using: node24', 'action.yml must use Node 24.');
 requireText(action, 'main: dist/index.js', 'action.yml must execute the committed dist/index.js.');
@@ -37,6 +38,17 @@ if (packageLock.name !== packageJson.name || packageLock.version !== packageJson
     throw new Error('package-lock.json root identity does not match package.json.');
 }
 if (packageLock.lockfileVersion !== 3) throw new Error('package-lock.json must use lockfile version 3.');
+
+
+const contractCommit = sourceContract.match(/[0-9a-f]{40}/u)?.[0];
+if (contractCommit === undefined) throw new Error('Zolt source-contract commit is missing or malformed.');
+const ciWorkflow = await readFile(resolve(root, '.github/workflows/ci.yml'), 'utf8');
+requireText(ciWorkflow, `ref: ${contractCommit}`, 'CI Zolt checkout does not match the source-contract commit.');
+requireText(
+    ciWorkflow,
+    `ZOLT_LIVE_SOURCE_COMMIT: ${contractCommit}`,
+    'CI live-contract environment does not match the source-contract commit.',
+);
 
 await access(resolve(root, 'dist/index.js'));
 await access(resolve(root, 'dist/licenses.txt'));
