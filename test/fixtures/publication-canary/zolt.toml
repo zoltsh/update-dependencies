@@ -8,4 +8,4 @@ java = "21"
 central = "https://repo.maven.apache.org/maven2"
 
 [dependencies]
-"com.google.guava:guava" = "31.0-jre"
+"com.google.guava:guava" = "33.6.0-jre"
