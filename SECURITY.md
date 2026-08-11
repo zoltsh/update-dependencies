@@ -46,11 +46,10 @@ and eventual GitHub API responses as untrusted.
 - Public output strips terminal escapes and controls, redacts raw, URL-encoded,
   and base64 secret forms, and is size-bounded.
 
-## Exact-update kernel
+## Exact-update execution
 
-The contract-ready executor is not invoked by the public planning entrypoint
-until a v2 Zolt release is pinned. Its boundary is nevertheless enforced and
-process-tested:
+Write mode invokes the executor only for authoritative schema-v2 targets. Its
+boundary is enforced and process-tested:
 
 - each target receives a fresh extraction of the original exact-commit archive;
 - update copies never share mutations and never alter the immutable view;
@@ -83,19 +82,19 @@ cannot consume managed-PR capacity merely by copying an Action marker. Blocked
 local managed PRs count against the open-PR limit, avoiding an unsafe duplicate
 replacement.
 
-## Current publication boundary
+## Managed publication boundary
 
-The public Action performs no checkout, branch, pull-request, or manifest
-writes. `dry-run: false` fails before those operations. A dormant, bounded
-GitHub.com client now implements blob, tree, commit, ref, and pull-request API
-operations without checkout credentials or `git push`. It exposes only
-`force: false` ref updates. A refresh commit retains the previous managed head
-as a parent, so a concurrent human branch commit makes the ref update fail
-rather than disappear.
+`dry-run: true` performs no branch, pull-request, or manifest writes.
+`dry-run: false` prepares every selected artifact before publication, rechecks
+the default branch and managed heads, then uses a bounded GitHub.com client for
+blob, tree, commit, ref, and pull-request operations. It does not use checkout
+credentials or `git push` and exposes only `force: false` ref updates.
 
-The remaining publication orchestrator must recheck the default branch, apply
-reconciliation, publish each verified artifact, report partial visibility, and
-keep the GitHub token out of Zolt and Maven credentials out of GitHub calls.
+A refresh commit retains the previous managed head as a parent, so a concurrent
+human branch commit makes the ref update fail rather than disappear. Branch
+generations prevent safely closed pull requests from leaving names that block a
+future update. Partial failures report every already-visible write. The GitHub
+token remains outside Zolt, and Maven credentials remain outside GitHub calls.
 
 The Action cannot protect a compromised runner, workflow, selected Action
 commit, embedded Zolt release, Git client, system `tar`, or repository
