@@ -18,9 +18,10 @@
     "node": ">=24"
   },
   "scripts": {
+    "actionlint": "actionlint",
     "bundle": "node scripts/bundle.mjs",
     "bundle:check": "node scripts/check-bundle.mjs",
-    "check": "npm run typecheck && npm run lint && npm test && npm run bundle:check && node scripts/check-repository.mjs",
+    "check": "npm run typecheck && npm run lint && npm test && npm run bundle:check && npm run actionlint && node scripts/check-repository.mjs",
     "lint": "node scripts/lint.mjs",
     "pinned-zolt:check": "node scripts/check-pinned-zolt.mjs",
     "test": "node scripts/build-tests.mjs && node --test --test-reporter spec dist-test/test/*.test.js",

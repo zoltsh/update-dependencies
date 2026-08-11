@@ -55,9 +55,6 @@ jobs:
       - name: Check repository
         run: scripts/check
 
-      - name: Check workflows
-        run: actionlint
-
       - name: Check dependency vulnerabilities
         run: npm audit
 

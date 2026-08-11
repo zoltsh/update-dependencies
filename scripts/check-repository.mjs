@@ -38,6 +38,12 @@ for (const script of ['preinstall', 'install', 'postinstall', 'prepare']) {
 if (packageJson.scripts?.['pinned-zolt:check'] !== 'node scripts/check-pinned-zolt.mjs') {
     throw new Error('package.json must expose the pinned Zolt contract check.');
 }
+if (packageJson.scripts?.actionlint !== 'actionlint') {
+    throw new Error('package.json must expose actionlint.');
+}
+if (!packageJson.scripts?.check?.includes('npm run actionlint')) {
+    throw new Error('The canonical package check must run actionlint.');
+}
 if (packageLock.name !== packageJson.name || packageLock.version !== packageJson.version) {
     throw new Error('package-lock.json root identity does not match package.json.');
 }
@@ -79,6 +85,9 @@ requireText(
 
 await access(resolve(root, 'dist/index.js'));
 await access(resolve(root, 'dist/licenses.txt'));
+await access(resolve(root, '.github/CODEOWNERS'));
+await access(resolve(root, '.github/pull_request_template.md'));
+await access(resolve(root, '.github/workflows/codeql.yml'));
 const checkMode = (await stat(resolve(root, 'scripts/check'))).mode;
 if ((checkMode & 0o111) === 0) throw new Error('scripts/check must be executable.');
 
