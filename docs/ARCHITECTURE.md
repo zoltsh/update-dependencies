@@ -27,11 +27,11 @@ trusted event + exact GITHUB_SHA
        publication gate (closed)
 ```
 
-The pinned Zolt release currently declares outdated schema v1. Separately, CI
-builds reviewed Zolt source commit
-`ae6532ef804c6347c6b1e72742216b9443c6c288` and exercises the real schema-v2
-contract. Moving the production selector to v2 remains coupled to pinning a
-matching immutable binary and all four checksums.
+The pinned Zolt release is built from reviewed source commit
+`ae6532ef804c6347c6b1e72742216b9443c6c288` and declares outdated schema v2.
+Production metadata contains the four independently verified archive digests.
+CI both builds that exact source and runs the same exact-target contract suite
+against each released platform binary.
 
 ## Contract-ready execution path
 

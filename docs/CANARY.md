@@ -31,13 +31,21 @@ Action decoders against real schema-v2 standalone, workspace, retained-empty,
 exact no-resolve, target-ID, and selected-schema failure behavior. The workflow
 ref and generated source-contract constant are checked for equality.
 
-This proves source compatibility; it does not substitute for archive checksums
-or authorize production release selection.
+This proves source compatibility independently of the released artifacts.
+
+## Pinned-release contract canary
+
+The runtime matrix downloads each of the four pinned archives, verifies its
+embedded SHA-256 and exact version, and runs production `captureOutdated` plus
+the schema-v2 standalone, modern-workspace, retained-empty, target-ID, exact
+no-resolve, and selected-schema failure suite against the released native
+binary. Each invocation uses the Action's minimal isolated Zolt environment, so
+GitHub credential channels are not inherited by the binary.
 
 ## Contract-ready executor canary
 
-After an immutable Zolt release declares schema v2, run the executor before
-enabling publication:
+Before enabling publication, extend released-binary coverage through the full
+executor boundary:
 
 - exact standalone dependency;
 - nested modern-workspace member plus root lock;

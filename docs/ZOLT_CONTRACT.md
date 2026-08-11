@@ -1,14 +1,12 @@
 # Zolt automation contract
 
-Zolt's schema-v2 exact-target contract is implemented on `zoltsh/zolt` main at
-source commit `ae6532ef804c6347c6b1e72742216b9443c6c288`. CI builds that exact
-source and runs the downstream contract canary.
-
-The public Action still pins an older immutable Zolt build that exposes stable
-`zolt outdated --format json` schema v1. Source-contract support and production
-release selection are intentionally separate: write mode stays closed until a
-matching release and four archive checksums land, publication canaries pass,
-and the dormant orchestrator is explicitly wired into the Action.
+The public Action pins immutable Zolt release
+`0.1.0-zap.20260810.ae6532ef804c`, built from reviewed source commit
+`ae6532ef804c6347c6b1e72742216b9443c6c288`, and selects its schema-v2
+exact-target contract. All four archive digests are embedded and independently
+verified; CI also runs the contract suite against every released platform
+binary. Write mode stays closed until publication canaries pass and the dormant
+orchestrator is explicitly wired into the Action.
 
 ## Canonical target inventory
 

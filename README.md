@@ -26,13 +26,12 @@
 <br />
 
 > [!IMPORTANT]
-> The public Action is still **planning-only**. Zolt's schema-v2 exact-target
-> contract is implemented on `zoltsh/zolt` main and exercised by a source-pinned
-> contract canary, but the Action still embeds the older schema-v1 release. GitHub
-> publication orchestration is implemented but unreachable from the public
-> entrypoint. Write mode remains disabled until a matching immutable release and
-> checksums are pinned, live canaries pass, and the orchestrator is wired into the
-> Action. Pin the action to a reviewed full commit SHA.
+> The public Action is still **planning-only**. It pins the immutable Zolt
+> `0.1.0-zap.20260810.ae6532ef804c` release and its schema-v2 exact-target
+> contract across all four supported platforms. GitHub publication orchestration
+> is implemented but unreachable from the public entrypoint. Write mode remains
+> disabled until live publication canaries pass and the orchestrator is explicitly
+> wired into the Action. Pin the action to a reviewed full commit SHA.
 
 ## Use
 
@@ -88,14 +87,13 @@ The public entrypoint performs the complete read and planning path:
 4. Give Zolt a minimal environment plus only credential variables explicitly
    named by `registry-env`.
 5. Decode the machine-readable outdated schema declared beside the pinned Zolt
-   release. The current release declares schema v1. Schema v2 is implemented in
-   Zolt source and continuously checked at its reviewed commit, but production
-   selection waits for matching immutable release metadata and checksums.
+   release. The current release declares schema v2 and supplies authoritative
+   target IDs and mutation-root-relative manifest/root-lock paths.
 6. Apply update policy and deterministic ordering while preserving alias fan-out.
 7. Render target identities, branch names, PR previews, outputs, and summaries.
 8. Reject publication before any checkout mutation or GitHub branch call.
 
-The contract-ready kernel additionally provides:
+The closed-gate execution kernel additionally provides:
 
 - strict schema-v2 target decoding that recomputes every `zt1_` ID from Zolt's
   canonical identity fields;
@@ -181,10 +179,11 @@ environment variables do not reach Zolt.
 
 ## Planning identities
 
-Schema-v1 `pzt1_…` target and `pzud1_…` managed identities are explicitly
-provisional. A schema-v2 release supplies the authoritative `zt1_…` target; the
-Action derives `zud1_…` from the selected Zolt root plus that ID. Destination
-versions are deliberately excluded so a managed PR can refresh in place.
+The production schema-v2 release supplies authoritative `zt1_…` targets, and
+the Action derives `zud1_…` from the selected Zolt root plus that ID. Legacy
+schema-v1 `pzt1_…`/`pzud1_…` identities remain only as provisional compatibility
+coverage. Destination versions are deliberately excluded so a managed PR can
+refresh in place.
 
 See [Zolt automation contract](./docs/ZOLT_CONTRACT.md).
 

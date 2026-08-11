@@ -9,23 +9,27 @@ The public entrypoint currently implements the safe planning half of
 - Default-branch event enforcement.
 - Exact-commit, dirty-checkout-independent repository reconstruction.
 - Repository path, mode, size, case-collision, and post-analysis Git-blob validation.
-- Four-target checksum-pinned Zolt release metadata.
+- Four-target checksum-pinned Zolt schema-v2 release metadata built from the
+  reviewed exact-target source commit.
 - Bounded gzip/tar inspection and extraction.
 - Exact Zolt version verification.
 - Modern, legacy, and standalone project selection.
 - Private Maven credential allowlisting and GitHub-token isolation.
-- Strict stable `zolt outdated --format json` schema-v1 decoding.
-- Source-pinned schema-v2 and exact-target canaries against reviewed Zolt main.
+- Strict `zolt outdated --format json --schema-version 2` decoding with
+  recomputed authoritative target IDs.
+- Source-built and released-binary exact-target canaries against the same
+  reviewed Zolt commit on all four supported runners.
 - Patch, minor, and major policy selection.
 - Workspace member manifest mapping, alias fan-out, and member attribution.
-- Stable provisional target, branch, title, marker, and body generation.
+- Stable authoritative target, branch, title, marker, and body generation.
 - Selected, deferred, blocked, and out-of-policy summaries.
 - Explicit write-mode refusal.
 - Built-in Node test suite and reproducible committed `dist/`.
 
-The pinned release declares schema v1. `ZOLT_OUTDATED_SCHEMA_VERSION` is kept
-beside its generated release metadata, so a release upgrade cannot silently
-switch machine contracts.
+The pinned release declares schema v2. `ZOLT_OUTDATED_SCHEMA_VERSION` remains
+beside its generated release metadata, and repository checks bind the release
+version, source commit, four digests, source canary, and CI released-binary
+canary so a release upgrade cannot silently switch machine contracts.
 
 ## Contract-ready execution batch
 
@@ -70,17 +74,15 @@ The repository now contains the next write-path layer, still unreachable from
 
 ## Remaining publication work
 
-The write gate opens only after all of the following land together:
+The write gate opens only after all of the following remaining work lands:
 
-1. An immutable Zolt release containing the reviewed schema-v2 contract (or a
-   reviewed descendant) is published.
-2. The Action pins that build and its four checksums and flips the generated
-   schema selector to `2`.
-3. Live standalone, workspace, alias, and private-registry canaries pass against
-   the real binary.
-4. Default-branch advancement, partial API failure, idempotent rerun, refresh,
+1. Live legacy-workspace, root-member, alias, and private-registry executor
+   canaries pass against the released binary; standalone, modern-workspace,
+   retained-empty, production capture, target-ID, and failure behavior already
+   run on every target.
+2. Default-branch advancement, partial API failure, idempotent rerun, refresh,
    close, and human-modification live canaries pass.
-5. `runAction` composes executor, reconciliation, and publication and removes
+3. `runAction` composes executor, reconciliation, and publication and removes
    `ZOLT-WRITE-001`.
 
 ## Later
