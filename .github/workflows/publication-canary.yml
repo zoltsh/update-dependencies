@@ -1,0 +1,109 @@
+name: publication canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm-write:
+        description: Create and clean up a real managed pull request
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-dependencies-publication-canary
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ inputs['confirm-write'] }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create managed canary pull request
+        id: create
+        uses: ./
+        with:
+          directory: test/fixtures/publication-canary
+          dry-run: false
+          open-pull-requests-limit: 1
+          update-ceiling: major
+
+      - name: Require one created pull request
+        env:
+          CLOSED: ${{ steps.create.outputs.closed-pull-request-count }}
+          CREATED: ${{ steps.create.outputs.created-pull-request-count }}
+          UPDATED: ${{ steps.create.outputs.updated-pull-request-count }}
+        run: |
+          test "$CREATED" = "1"
+          test "$UPDATED" = "0"
+          test "$CLOSED" = "0"
+
+      - name: Repeat publication
+        id: repeat
+        uses: ./
+        with:
+          directory: test/fixtures/publication-canary
+          dry-run: false
+          open-pull-requests-limit: 1
+          update-ceiling: major
+
+      - name: Require an idempotent rerun
+        env:
+          CLOSED: ${{ steps.repeat.outputs.closed-pull-request-count }}
+          CREATED: ${{ steps.repeat.outputs.created-pull-request-count }}
+          PLANNED: ${{ steps.repeat.outputs.planned-update-count }}
+          UPDATED: ${{ steps.repeat.outputs.updated-pull-request-count }}
+        run: |
+          test "$PLANNED" = "1"
+          test "$CREATED" = "0"
+          test "$UPDATED" = "0"
+          test "$CLOSED" = "0"
+
+      - name: Clean up canary pull request and branch
+        if: always()
+        env:
+          FIRST_OUTCOME: ${{ steps.create.outcome }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          matches="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 100 \
+            --json number,headRefName,body \
+            --jq '.[] | select(.body != null and (.body | contains("test/fixtures/publication-canary/zolt.toml"))) | "\(.number)\t\(.headRefName)"')"
+          count=0
+          while IFS=$'\t' read -r number _branch; do
+            test -n "$number" || continue
+            count=$((count + 1))
+            gh pr close "$number" --repo "$GITHUB_REPOSITORY"
+          done <<< "$matches"
+          branches="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/zolt/update/guava-" \
+            --jq '.[].ref')"
+          while read -r ref; do
+            test -n "$ref" || continue
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/${ref#refs/}"
+          done <<< "$branches"
+          if [ "$FIRST_OUTCOME" = "success" ]; then
+            test "$count" = "1"
+          fi
+          remaining="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 100 \
+            --json body \
+            --jq '[.[] | select(.body != null and (.body | contains("test/fixtures/publication-canary/zolt.toml")))] | length')"
+          test "$remaining" = "0"
+          branch_count="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/zolt/update/guava-" \
+            --jq 'length')"
+          test "$branch_count" = "0"

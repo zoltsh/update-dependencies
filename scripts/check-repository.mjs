@@ -88,6 +88,18 @@ await access(resolve(root, 'dist/licenses.txt'));
 await access(resolve(root, '.github/CODEOWNERS'));
 await access(resolve(root, '.github/pull_request_template.md'));
 await access(resolve(root, '.github/workflows/codeql.yml'));
+const publicationCanary = await readFile(
+    resolve(root, '.github/workflows/publication-canary.yml'),
+    'utf8',
+);
+requireText(publicationCanary, 'dry-run: false', 'The live publication canary must exercise write mode.');
+requireText(
+    publicationCanary,
+    'test/fixtures/publication-canary',
+    'The live publication canary must use the committed fixture.',
+);
+await access(resolve(root, 'test/fixtures/publication-canary/zolt.toml'));
+await access(resolve(root, 'test/fixtures/publication-canary/zolt.lock'));
 const checkMode = (await stat(resolve(root, 'scripts/check'))).mode;
 if ((checkMode & 0o111) === 0) throw new Error('scripts/check must be executable.');
 

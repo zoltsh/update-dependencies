@@ -1,0 +1,11 @@
+[project]
+name = "publication-canary"
+version = "0.1.0"
+group = "com.zoltsh"
+java = "21"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[dependencies]
+"com.google.guava:guava" = "31.0-jre"

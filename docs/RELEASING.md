@@ -16,11 +16,10 @@ publish an npm package.
 4. Run `actionlint` against every workflow.
 5. Confirm the reviewed-source exact-target canary, supported runner matrix,
    and Windows rejection tests pass.
-6. Run planning canaries for standalone, modern/legacy workspace, alias fan-out,
-   and private repositories.
-7. When schema v2 is selected, run real exact-update artifact canaries plus the
-   managed-marker, reconciliation, and GitHub API adapter suites even if
-   publication remains closed.
+6. Run the manual publication canary and require create, idempotent rerun, and
+   cleanup to pass.
+7. Confirm real exact-update artifact canaries plus the managed-marker,
+   reconciliation, and GitHub API adapter suites pass.
 8. Review the source diff, complete `dist/` diff, and `dist/licenses.txt`.
 9. Confirm `main` is clean and protected.
 
@@ -45,9 +44,7 @@ artifact.
 - Confirm the tag resolves to the reviewed signed commit.
 - Run a consumer workflow pinned to that full SHA.
 - Confirm the expected Zolt version, schema selector, and deterministic plan.
-- Confirm a repeated run is byte-equivalent.
-- Confirm write mode remains rejected unless that release explicitly wires the
-  reviewed publication orchestrator after its live canaries pass.
+- Confirm `dry-run: false` creates a managed PR and a repeated run is a no-op.
 - Confirm pull-request events, non-default branches, Windows, malformed machine
   documents, bad archive checksums, missing credentials, unexpected update
   files, marker collisions, and human-modified heads fail closed without
