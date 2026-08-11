@@ -2,17 +2,24 @@ import * as assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { basename, join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { promisify } from 'node:util';
 
+import { createRepositoryView } from '../src/environment/repository-state.js';
 import { ZOLT_EXACT_TARGET_CONTRACT_COMMIT } from '../src/generated/zolt-source-contract.js';
+import { planUpdates } from '../src/planner/plan.js';
+import { prepareExactUpdateArtifact } from '../src/update/executor.js';
 import { captureOutdated } from '../src/zolt/commands.js';
 import { createZoltEnvironment } from '../src/zolt/process.js';
 import { decodeOutdatedReportV2 } from '../src/zolt/contracts-v2.js';
 import { decodeExactUpdateResult } from '../src/zolt/exact-contract.js';
 import { decodeMachineFailure } from '../src/zolt/failure-contract.js';
 import { createZoltTargetId } from '../src/zolt/target-id.js';
+import { selectZoltProject } from '../src/zolt/workspace.js';
+import type { ExactUpdateArtifact } from '../src/types.js';
 import { actionInputs, projectSelection } from './support/fixtures.js';
 
 const execute = promisify(execFile);
@@ -127,6 +134,116 @@ live('reviewed Zolt emits selected-schema failures on stdout', async (context) =
     assert.equal(failure.diagnostics[0]?.severity, 'error');
 });
 
+live('production executor prepares verified artifacts across supported project layouts', async (context) => {
+    assert.ok(binary);
+    const environment = await isolatedEnvironment(context);
+    const layouts = [
+        await executorProject(context, 'executor-standalone', 'standalone'),
+        await executorProject(context, 'executor-modern', 'modern'),
+        await executorProject(context, 'executor-legacy', 'legacy'),
+        await executorProject(context, 'executor-root-member', 'root-member'),
+        await executorProject(context, 'executor-alias', 'alias'),
+    ] as const;
+
+    for (const layout of layouts) {
+        const resolveArguments = ['resolve'];
+        if (layout.workspace) resolveArguments.push('--workspace');
+        resolveArguments.push('--cwd', layout.root);
+        await invokeWithEnvironment(resolveArguments, environment);
+        const sha = await commitFixture(layout.root);
+        const repository = await createRepositoryView({
+            directory: layout.directory,
+            expectedSha: sha,
+            workspace: layout.root,
+        });
+        context.after(repository.cleanup);
+        const selection = await selectZoltProject(repository, 'auto');
+        const inputs = actionInputs({ updateCeiling: 'major' });
+        const report = await captureOutdated(binary, inputs, selection, environment);
+        const target = planUpdates(report, selection, inputs).eligible
+            .find(({ identifier }) => identifier === layout.identifier);
+        assert.ok(target, `Expected ${layout.identifier} in ${layout.name}: ${JSON.stringify(report)}`);
+        const artifact: ExactUpdateArtifact = await prepareExactUpdateArtifact({
+            binary,
+            environment,
+            includePrereleases: false,
+            repository,
+            selection,
+            target,
+        }).catch((error: unknown) => {
+            throw new Error(`${layout.name}: ${error instanceof Error ? error.message : String(error)}`, {
+                cause: error,
+            });
+        });
+
+        assert.deepEqual(artifact.changedFiles, layout.changedFiles, layout.name);
+        assert.deepEqual(artifact.files.map(({ path }) => path), layout.changedFiles, layout.name);
+        assert.equal(artifact.result.resolved, true, layout.name);
+        assert.equal(artifact.target.authoritativeTarget, true, layout.name);
+        if (layout.name === 'alias') assert.equal(artifact.target.fanOut.length, 2);
+        await repository.verify();
+    }
+});
+
+live('production executor isolates and uses private repository credentials', async (context) => {
+    assert.ok(binary);
+    for (const mode of ['basic', 'bearer'] as const) {
+        const username = 'canary-user';
+        const password = 'canary-password';
+        const token = 'canary-token';
+        const expectedAuthorization = mode === 'basic'
+            ? `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`
+            : `Bearer ${token}`;
+        const repositoryServer = await privateMavenRepository(context, expectedAuthorization);
+        const root = await temporaryRoot(context, `private-${mode}`);
+        const credentialNames = mode === 'basic'
+            ? ['ZOLT_CANARY_USERNAME', 'ZOLT_CANARY_PASSWORD']
+            : ['ZOLT_CANARY_TOKEN'];
+        await writePrivateProject(join(root, 'zolt.toml'), repositoryServer.url, mode);
+        const source = {
+            ...process.env,
+            GITHUB_TOKEN: 'github-token-secret',
+            ZOLT_CANARY_PASSWORD: password,
+            ZOLT_CANARY_TOKEN: token,
+            ZOLT_CANARY_USERNAME: username,
+        };
+        const zoltEnvironment = await createZoltEnvironment(
+            source,
+            credentialNames,
+            'github-token-secret',
+            () => undefined,
+        );
+        context.after(zoltEnvironment.cleanup);
+        assert.equal(zoltEnvironment.environment.GITHUB_TOKEN, undefined);
+        await invokeWithEnvironment(['resolve', '--cwd', root], zoltEnvironment.environment);
+        const sha = await commitFixture(root);
+        const repository = await createRepositoryView({
+            directory: '.',
+            expectedSha: sha,
+            workspace: root,
+        });
+        context.after(repository.cleanup);
+        const selection = await selectZoltProject(repository, 'auto');
+        const inputs = actionInputs({ updateCeiling: 'major' });
+        const report = await captureOutdated(binary, inputs, selection, zoltEnvironment.environment);
+        const target = planUpdates(report, selection, inputs).eligible[0];
+        assert.ok(target);
+        const artifact = await prepareExactUpdateArtifact({
+            binary,
+            environment: zoltEnvironment.environment,
+            includePrereleases: false,
+            repository,
+            selection,
+            target,
+        });
+
+        assert.deepEqual(artifact.changedFiles, ['zolt.toml', 'zolt.lock']);
+        assert.ok(repositoryServer.authorizations.length > 0);
+        assert.ok(repositoryServer.authorizations.every((value) => value === expectedAuthorization));
+        assert.ok(repositoryServer.authorizations.every((value) => !value.includes('github-token-secret')));
+    }
+});
+
 async function outdated(context: TestContext, root: string) {
     const result = await invoke(context, [
         'outdated',
@@ -185,6 +302,20 @@ async function invoke(
     }
 }
 
+async function invokeWithEnvironment(
+    arguments_: readonly string[],
+    environment: NodeJS.ProcessEnv,
+): Promise<void> {
+    assert.ok(binary);
+    const result = await execute(binary, ['--color', 'never', '--progress', 'never', ...arguments_], {
+        encoding: 'utf8',
+        env: environment,
+        maxBuffer: 64 * 1024 * 1024,
+        timeout: 120_000,
+    });
+    assert.equal(result.stderr, '');
+}
+
 async function project(context: TestContext, name: string): Promise<string> {
     const root = await temporaryRoot(context, name);
     await writeProject(join(root, 'zolt.toml'), 'com.example:lib', '1.0.0');
@@ -217,4 +348,209 @@ central = "https://repo.maven.apache.org/maven2"
 [dependencies]
 "${identifier}" = "${version}"
 `, 'utf8');
+}
+
+interface ExecutorProject {
+    readonly changedFiles: readonly string[];
+    readonly directory: string;
+    readonly identifier: string;
+    readonly name: string;
+    readonly root: string;
+    readonly workspace: boolean;
+}
+
+async function executorProject(
+    context: TestContext,
+    name: string,
+    kind: 'alias' | 'legacy' | 'modern' | 'root-member' | 'standalone',
+): Promise<ExecutorProject> {
+    const root = await temporaryRoot(context, name);
+    if (kind === 'standalone') {
+        await writeProject(join(root, 'zolt.toml'), 'com.google.guava:guava', '31.0-jre');
+        return {
+            changedFiles: ['zolt.toml', 'zolt.lock'],
+            directory: '.',
+            identifier: 'com.google.guava:guava',
+            name: kind,
+            root,
+            workspace: false,
+        };
+    }
+    if (kind === 'alias') {
+        await writeFile(join(root, 'zolt.toml'), `
+[project]
+name = "alias-demo"
+version = "0.1.0"
+group = "com.example"
+java = "21"
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[versions]
+junit = "5.8.0"
+
+[dependencies]
+"org.junit.jupiter:junit-jupiter-api" = { versionRef = "junit" }
+"org.junit.jupiter:junit-jupiter-engine" = { versionRef = "junit" }
+`, 'utf8');
+        return {
+            changedFiles: ['zolt.toml', 'zolt.lock'],
+            directory: '.',
+            identifier: 'junit',
+            name: kind,
+            root,
+            workspace: false,
+        };
+    }
+    if (kind === 'root-member') {
+        await writeFile(join(root, 'zolt.toml'), `
+[project]
+name = "root-member"
+version = "0.1.0"
+group = "com.example"
+java = "21"
+
+[workspace]
+name = "root-member"
+members = ["."]
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[dependencies]
+"com.google.guava:guava" = "31.0-jre"
+`, 'utf8');
+        return {
+            changedFiles: ['zolt.toml', 'zolt.lock'],
+            directory: '.',
+            identifier: 'com.google.guava:guava',
+            name: kind,
+            root,
+            workspace: true,
+        };
+    }
+    const member = join(root, 'apps', 'api');
+    await mkdir(member, { recursive: true });
+    const workspaceFile = kind === 'legacy' ? 'zolt-workspace.toml' : 'zolt.toml';
+    await writeFile(join(root, workspaceFile), `
+[workspace]
+name = "${kind}-workspace"
+members = ["apps/api"]
+`, 'utf8');
+    await writeProject(join(member, 'zolt.toml'), 'com.google.guava:guava', '31.0-jre');
+    return {
+        changedFiles: ['apps/api/zolt.toml', 'zolt.lock'],
+        directory: 'apps/api',
+        identifier: 'com.google.guava:guava',
+        name: kind,
+        root,
+        workspace: true,
+    };
+}
+
+async function commitFixture(root: string): Promise<string> {
+    await execute('git', ['init', '-b', 'main'], { cwd: root, encoding: 'utf8' });
+    await execute('git', ['config', 'user.name', 'Zolt canary'], { cwd: root, encoding: 'utf8' });
+    await execute('git', ['config', 'user.email', 'canary@zolt.sh'], { cwd: root, encoding: 'utf8' });
+    await execute('git', ['add', '--', 'zolt.lock', ':(glob)**/*.toml'], { cwd: root, encoding: 'utf8' });
+    await execute('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', 'fixture'], {
+        cwd: root,
+        encoding: 'utf8',
+    });
+    return (await execute('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' })).stdout.trim();
+}
+
+async function writePrivateProject(
+    path: string,
+    repositoryUrl: string,
+    mode: 'basic' | 'bearer',
+): Promise<void> {
+    const credentials = mode === 'basic'
+        ? 'usernameEnv = "ZOLT_CANARY_USERNAME"\npasswordEnv = "ZOLT_CANARY_PASSWORD"'
+        : 'tokenEnv = "ZOLT_CANARY_TOKEN"';
+    await writeFile(path, `
+[project]
+name = "private-demo"
+version = "0.1.0"
+group = "com.example"
+java = "21"
+
+[repositories]
+private = { url = "${repositoryUrl}", credentials = "private" }
+
+[repositoryCredentials.private]
+${credentials}
+
+[dependencies]
+"com.example:private" = "1.0.0"
+`, 'utf8');
+}
+
+interface PrivateMavenRepository {
+    readonly authorizations: string[];
+    readonly url: string;
+}
+
+async function privateMavenRepository(
+    context: TestContext,
+    expectedAuthorization: string,
+): Promise<PrivateMavenRepository> {
+    const authorizations: string[] = [];
+    const emptyJar = Buffer.from([
+        0x50, 0x4b, 0x05, 0x06,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0,
+    ]);
+    const metadata = Buffer.from(`
+<metadata>
+  <groupId>com.example</groupId>
+  <artifactId>private</artifactId>
+  <versioning>
+    <latest>1.1.0</latest>
+    <release>1.1.0</release>
+    <versions><version>1.0.0</version><version>1.1.0</version></versions>
+    <lastUpdated>20260811000000</lastUpdated>
+  </versioning>
+</metadata>
+`);
+    const responses = new Map<string, Buffer>([
+        ['/maven2/com/example/private/maven-metadata.xml', metadata],
+        ...['1.0.0', '1.1.0'].flatMap((version): [string, Buffer][] => {
+            const base = `/maven2/com/example/private/${version}/private-${version}`;
+            const pom = Buffer.from(`
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>private</artifactId>
+  <version>${version}</version>
+</project>
+`);
+            return [[`${base}.pom`, pom], [`${base}.jar`, emptyJar]];
+        }),
+    ]);
+    const server = createServer((request, response) => {
+        const authorization = request.headers.authorization ?? '';
+        authorizations.push(authorization);
+        if (authorization !== expectedAuthorization) {
+            response.writeHead(401).end('authentication required');
+            return;
+        }
+        const body = responses.get(request.url ?? '');
+        if (body === undefined) {
+            response.writeHead(404).end('missing');
+            return;
+        }
+        response.writeHead(200, { 'content-length': body.length }).end(body);
+    });
+    await new Promise<void>((resolvePromise, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolvePromise);
+    });
+    context.after(() => new Promise<void>((resolvePromise, reject) => {
+        server.close((error) => error === undefined ? resolvePromise() : reject(error));
+    }));
+    const address = server.address() as AddressInfo;
+    return { authorizations, url: `http://127.0.0.1:${address.port.toString()}/maven2` };
 }

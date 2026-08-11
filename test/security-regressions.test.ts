@@ -19,6 +19,7 @@ const execution: ExecutionContext = {
     ref: 'refs/heads/main',
     repository: 'zoltsh/example',
     repositoryId: '123456',
+    publicationGeneration: 'f'.repeat(64),
     sha: 'a'.repeat(40),
     workspace: '/checkout',
 };

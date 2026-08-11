@@ -8,6 +8,7 @@ const FULL_SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const MAX_PAYLOAD_BYTES = 4096;
 const EXPECTED_KEYS = [
     'baseSha',
+    'branchGeneration',
     'lockfilePath',
     'managedHeadSha',
     'managedId',
@@ -63,6 +64,7 @@ function decodeMarkerObject(value) {
     }
     return validateMarker({
         baseSha: stringValue(object.baseSha, 'baseSha'),
+        branchGeneration: stringValue(object.branchGeneration, 'branchGeneration'),
         lockfilePath: stringValue(object.lockfilePath, 'lockfilePath'),
         managedHeadSha: stringValue(object.managedHeadSha, 'managedHeadSha'),
         managedId: stringValue(object.managedId, 'managedId'),
@@ -82,6 +84,9 @@ function validateMarker(marker) {
     }
     if (!FULL_SHA_PATTERN.test(marker.baseSha))
         throw markerError('The managed marker has an invalid baseSha.');
+    if (!FULL_SHA_PATTERN.test(marker.branchGeneration)) {
+        throw markerError('The managed marker has an invalid branchGeneration.');
+    }
     if (!FULL_SHA_PATTERN.test(marker.managedHeadSha))
         throw markerError('The managed marker has an invalid managedHeadSha.');
     const zoltRoot = canonicalRelativeRoot(marker.zoltRoot, 'managed marker Zolt root');
@@ -99,6 +104,7 @@ function validateMarker(marker) {
     }
     return Object.freeze({
         baseSha: marker.baseSha,
+        branchGeneration: marker.branchGeneration,
         lockfilePath,
         managedHeadSha: marker.managedHeadSha,
         managedId: marker.managedId,

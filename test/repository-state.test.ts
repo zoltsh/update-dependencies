@@ -23,7 +23,7 @@ test('createRepositoryView reads the exact commit and ignores dirty checkout fil
     await writeFile(join(root, 'zolt.toml'), '[project]\nname = "committed"\n', 'utf8');
     await writeFile(join(root, 'zolt.lock'), 'version = 1\n', 'utf8');
     await git(root, ['add', '.']);
-    await git(root, ['commit', '-m', 'initial']);
+    await git(root, ['-c', 'commit.gpgsign=false', 'commit', '-m', 'initial']);
     const sha = (await git(root, ['rev-parse', 'HEAD'])).trim();
     await writeFile(join(root, 'zolt.toml'), '[project]\nname = "dirty"\n', 'utf8');
 
@@ -63,7 +63,7 @@ test('createRepositoryView rejects committed symbolic links', async (context) =>
     await writeFile(join(root, 'target'), 'value\n', 'utf8');
     await symlink('target', join(root, 'link'));
     await git(root, ['add', '.']);
-    await git(root, ['commit', '-m', 'link']);
+    await git(root, ['-c', 'commit.gpgsign=false', 'commit', '-m', 'link']);
     const sha = (await git(root, ['rev-parse', 'HEAD'])).trim();
 
     await assert.rejects(

@@ -292,7 +292,7 @@ async function exactFixture(
     await writeFile(binary, fakeZoltSource(), { encoding: 'utf8', mode: 0o755 });
     await chmod(binary, 0o755);
     await git(root, ['add', '.']);
-    await git(root, ['commit', '-m', 'fixture']);
+    await git(root, ['-c', 'commit.gpgsign=false', 'commit', '-m', 'fixture']);
     const sha = (await git(root, ['rev-parse', 'HEAD'])).trim();
     const repository = await createRepositoryView({ directory: '.', expectedSha: sha, workspace: root }, {
         environment: { RUNNER_TEMP: runnerTemp },
@@ -355,6 +355,9 @@ if (args.includes('update')) {
   if (process.env.FAKE_ZOLT_MODE === 'extra-file') fs.writeFileSync(path.join(process.cwd(), 'unexpected.txt'), 'unexpected\\n');
   if (process.env.FAKE_ZOLT_MODE === 'mode-change') fs.chmodSync(manifest, 0o755);
   if (process.env.FAKE_ZOLT_MODE === 'empty-directory') fs.mkdirSync(path.join(process.cwd(), '.zolt', 'locks'), { recursive: true });
+  if (process.env.FAKE_ZOLT_MODE === 'empty-directory') fs.writeFileSync(path.join(process.cwd(), '.zolt', 'workspace-mutation.lock'), 'held\\n');
+  if (process.env.FAKE_ZOLT_MODE === 'empty-directory') fs.mkdirSync(path.join(process.cwd(), '.zolt', 'lockfile-mutations'), { recursive: true });
+  if (process.env.FAKE_ZOLT_MODE === 'empty-directory') fs.writeFileSync(path.join(process.cwd(), '.zolt', 'lockfile-mutations', 'zolt.lock.lock'), 'held\\n');
   const changedFiles = process.env.FAKE_ZOLT_MODE === 'misreport'
     ? [process.env.FAKE_ZOLT_MANIFEST]
     : [process.env.FAKE_ZOLT_MANIFEST, process.env.FAKE_ZOLT_LOCK];
@@ -385,6 +388,12 @@ if (args.includes('update')) {
   process.exit(0);
 }
 if (args.includes('resolve')) {
+  if (process.env.FAKE_ZOLT_MODE === 'empty-directory') {
+    fs.mkdirSync(path.join(process.cwd(), '.zolt'), { recursive: true });
+    fs.writeFileSync(path.join(process.cwd(), '.zolt', 'workspace-mutation.lock'), 'held\\n');
+    fs.mkdirSync(path.join(process.cwd(), '.zolt', 'lockfile-mutations'), { recursive: true });
+    fs.writeFileSync(path.join(process.cwd(), '.zolt', 'lockfile-mutations', 'zolt.lock.lock'), 'held\\n');
+  }
   if (process.env.FAKE_ZOLT_MODE === 'verify-mutates') {
     const lock = path.join(process.cwd(), process.env.FAKE_ZOLT_LOCK);
     fs.appendFileSync(lock, 'verification = "mutated"\\n');

@@ -7,12 +7,13 @@ import {
     canonicalZoltRootLockPath,
     joinRelativeRoot,
 } from '../paths.js';
-import { branchSlug, managedTargetIdentity } from '../planner/identity.js';
+import { managedTargetIdentity } from '../planner/identity.js';
 import type { PlannedUpdate, PullRequestPreview } from '../types.js';
 import {
     parseManagedMarker,
     type ManagedPullRequestMarker,
 } from './managed-marker.js';
+import { managedBranch } from './preview.js';
 
 export interface DesiredManagedPullRequest {
     readonly preview: PullRequestPreview;
@@ -56,6 +57,7 @@ export interface RetainedManagedTarget {
 
 export interface ReconciliationInput {
     readonly baseSha: string;
+    readonly branchGeneration: string;
     readonly defaultBranch: string;
     readonly desired: readonly DesiredManagedPullRequest[];
     readonly existing: readonly ExistingPullRequest[];
@@ -74,7 +76,7 @@ export function reconcileManagedPullRequests(
 ): ManagedPullRequestReconciliation {
     requireLimit(input.openPullRequestsLimit);
     requireRepositoryIdentity(input.repositoryId, input.defaultBranch, input.baseSha);
-    const desiredById = desiredIndex(input.desired);
+    const desiredById = desiredIndex(input.desired, input.branchGeneration);
     const retainedById = retainedIndex(input.retained ?? [], desiredById);
     const ignored: ExistingPullRequest[] = [];
     const blocked: BlockedManagedPullRequest[] = [];
@@ -132,7 +134,11 @@ export function reconcileManagedPullRequests(
                 blocked.push({ existing: entry.existing, reason: retained });
                 continue;
             }
-            if (!plausibleManagedBranch(entry.existing.branch, entry.marker.managedId)) {
+            if (!plausibleManagedBranch(
+                entry.existing.branch,
+                entry.marker.managedId,
+                entry.marker.branchGeneration,
+            )) {
                 blocked.push({
                     existing: entry.existing,
                     reason: 'The obsolete marker is attached to a branch the action does not own.',
@@ -147,7 +153,7 @@ export function reconcileManagedPullRequests(
             blocked.push({ existing: entry.existing, reason: mismatch });
             continue;
         }
-        if (entry.existing.branch !== desired.preview.branch) {
+        if (entry.existing.branch !== managedBranch(desired.target, entry.marker.branchGeneration)) {
             blocked.push({
                 existing: entry.existing,
                 reason: 'The managed pull request uses a branch other than the target branch.',
@@ -179,10 +185,11 @@ export function reconcileManagedPullRequests(
 
 function desiredIndex(
     desired: readonly DesiredManagedPullRequest[],
+    branchGeneration: string,
 ): ReadonlyMap<string, DesiredManagedPullRequest> {
     const result = new Map<string, DesiredManagedPullRequest>();
     for (const entry of desired) {
-        requireDesiredTarget(entry);
+        requireDesiredTarget(entry, branchGeneration);
         if (result.has(entry.target.managedId)) {
             throw actionError(
                 'ZOLT-RECONCILE-001',
@@ -194,7 +201,7 @@ function desiredIndex(
     return result;
 }
 
-function requireDesiredTarget(entry: DesiredManagedPullRequest): void {
+function requireDesiredTarget(entry: DesiredManagedPullRequest, branchGeneration: string): void {
     const target = entry.target;
     if (
         !target.authoritativeTarget
@@ -224,7 +231,7 @@ function requireDesiredTarget(entry: DesiredManagedPullRequest): void {
         throw actionError('ZOLT-RECONCILE-001', 'The desired target has an inconsistent file boundary.');
     }
     const identity = managedTargetIdentity(root, target.targetId);
-    const branch = `zolt/update/${branchSlug(target.identifier)}-${identity.branchHash}`;
+    const branch = managedBranch(target, branchGeneration);
     if (
         identity.managedId !== target.managedId
         || identity.branchHash !== target.branchHash
@@ -273,16 +280,20 @@ function groupByManagedId(
 }
 
 function genericManagedBranch(branch: string): boolean {
-    return /^zolt\/update\/[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?-[0-9a-f]{10}$/u.test(branch);
+    return /^zolt\/update\/[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?-[0-9a-f]{10}-[0-9a-f]{10}$/u.test(branch);
 }
 
-function plausibleManagedBranch(branch: string, managedId: string): boolean {
-    if (!isCanonicalDigestIdentifier(managedId, 'zud1_')) return false;
+function plausibleManagedBranch(branch: string, managedId: string, branchGeneration: string): boolean {
+    if (
+        !isCanonicalDigestIdentifier(managedId, 'zud1_')
+        || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(branchGeneration)
+    ) return false;
     const encoded = managedId.slice('zud1_'.length);
     const bytes = Buffer.from(encoded, 'base64url');
     if (bytes.length !== 32 || bytes.toString('base64url') !== encoded) return false;
-    const suffix = bytes.toString('hex').slice(0, 10);
-    return genericManagedBranch(branch) && branch.endsWith(`-${suffix}`);
+    const identitySuffix = bytes.toString('hex').slice(0, 10);
+    return genericManagedBranch(branch)
+        && branch.endsWith(`-${identitySuffix}-${branchGeneration.slice(0, 10)}`);
 }
 
 function markerMismatch(

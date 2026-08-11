@@ -1,5 +1,5 @@
 name: Update Zolt dependencies
-description: Safely plan pull requests for Zolt dependency updates
+description: Safely create pull requests for Zolt dependency updates
 author: zoltsh
 
 inputs:
@@ -12,7 +12,7 @@ inputs:
     required: false
     default: auto
   github-token:
-    description: Token reserved for future managed branch and pull request operations; never passed to Zolt
+    description: Token used for managed branches and pull requests; never passed to Zolt
     required: false
     default: ${{ github.token }}
   update-ceiling:
@@ -48,11 +48,11 @@ outputs:
   plan:
     description: Deterministic JSON array of selected update targets
   created-pull-request-count:
-    description: Pull requests created; always zero in the planning preview
+    description: Pull requests created in this run
   updated-pull-request-count:
-    description: Pull requests refreshed; always zero in the planning preview
+    description: Pull requests refreshed in this run
   closed-pull-request-count:
-    description: Pull requests closed; always zero in the planning preview
+    description: Pull requests closed in this run
   zolt-version:
     description: Exact verified Zolt version used by the action
 

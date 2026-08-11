@@ -1,4 +1,4 @@
-import { lstat, readFile } from 'node:fs/promises';
+import { lstat, readFile, unlink } from 'node:fs/promises';
 
 import { MAX_UPDATE_ARTIFACT_BYTES } from '../constants.js';
 import { actionError } from '../errors.js';
@@ -55,6 +55,7 @@ export async function prepareExactUpdateArtifact(
             },
         );
         validateExactResult(result, input.target);
+        await removeTransientMutationLocks(copy.workspace, input.target);
         const afterUpdate = await copy.inspectChanges();
         const changedFiles = validateChanges(afterUpdate, result, input.target);
         const filesBeforeVerification = await readArtifactFiles(copy.workspace, changedFiles);
@@ -64,6 +65,7 @@ export async function prepareExactUpdateArtifact(
             zoltRoot,
             input.environment,
         );
+        await removeTransientMutationLocks(copy.workspace, input.target);
         const afterVerification = await copy.inspectChanges();
         requireSameChanges(afterUpdate, afterVerification);
         const files = await readArtifactFiles(copy.workspace, changedFiles);
@@ -81,6 +83,34 @@ export async function prepareExactUpdateArtifact(
             await input.repository.verify();
         }
     }
+}
+
+async function removeTransientMutationLocks(workspace: string, target: PlannedUpdate): Promise<void> {
+    const paths = [
+        '.zolt/workspace-mutation.lock',
+        `.zolt/lockfile-mutations/${target.zoltLockfilePath}.lock`,
+    ];
+    for (const path of paths) await removeTransientMutationLock(workspace, target.zoltRoot, path);
+}
+
+async function removeTransientMutationLock(
+    workspace: string,
+    zoltRoot: string,
+    transientPath: string,
+): Promise<void> {
+    const relative = joinRelativeRoot(zoltRoot, transientPath, 'Zolt mutation lock');
+    const path = containedFile(workspace, relative, 'Zolt mutation lock');
+    let info;
+    try {
+        info = await lstat(path);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+        throw actionError('ZOLT-EXECUTE-007', 'Could not inspect Zolt transient mutation state.', error);
+    }
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 4096) {
+        throw actionError('ZOLT-EXECUTE-007', 'Zolt transient mutation state is not a bounded regular file.');
+    }
+    await unlink(path);
 }
 
 function requireAuthoritativeTarget(
@@ -151,18 +181,21 @@ function validateChanges(
     ) {
         throw actionError(
             'ZOLT-EXECUTE-003',
-            'Zolt exact update deleted entries or changed file modes.',
+            `Zolt exact update deleted entries or changed file modes: deleted [${changes.deleted.join(', ')}], modes [${changes.modeChanged.join(', ')}], missing directories [${changes.missingDirectories.join(', ')}].`,
         );
     }
     if (changes.added.some((path) => path !== target.lockfilePath)) {
         throw actionError(
             'ZOLT-EXECUTE-003',
-            'Zolt exact update changed a file outside its manifest/root-lock boundary.',
+            `Zolt exact update added a file outside its manifest/root-lock boundary: ${changes.added.join(', ')}.`,
         );
     }
     const allowed = new Set([target.manifestPath, target.lockfilePath]);
     if (changes.paths.some((path) => !allowed.has(path))) {
-        throw actionError('ZOLT-EXECUTE-003', 'Zolt exact update changed a file outside its manifest/root-lock boundary.');
+        throw actionError(
+            'ZOLT-EXECUTE-003',
+            `Zolt exact update changed a file outside its manifest/root-lock boundary: ${changes.paths.join(', ')}.`,
+        );
     }
     if (!changes.paths.includes(target.manifestPath)) {
         throw actionError('ZOLT-EXECUTE-003', 'Zolt exact update did not change the selected manifest.');

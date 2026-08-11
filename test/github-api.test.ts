@@ -151,7 +151,7 @@ test('GitHubRepositoryApi builds a refresh commit from the current base and mana
 
 test('GitHubRepositoryApi manages refs and pull requests through validated endpoints', async () => {
     const requests: GitHubJsonRequest[] = [];
-    const branch = 'zolt/update/demo-0123456789';
+    const branch = 'zolt/update/demo-0123456789-aaaaaaaaaa';
     const replies: GitHubJsonResponse[] = [
         { status: 200, value: { object: { sha: BASE } } },
         { status: 404, value: { message: 'Not Found' } },
@@ -200,7 +200,10 @@ test('GitHubRepositoryApi manages refs and pull requests through validated endpo
     await api.closePullRequest(18);
 
     assert.equal(requests[0]?.path, '/repos/zoltsh/demo/git/ref/heads/main');
-    assert.equal(requests[1]?.path, '/repos/zoltsh/demo/git/ref/heads/zolt/update/demo-0123456789');
+    assert.equal(
+        requests[1]?.path,
+        '/repos/zoltsh/demo/git/ref/heads/zolt/update/demo-0123456789-aaaaaaaaaa',
+    );
     assert.deepEqual(requests[2]?.body, { ref: `refs/heads/${branch}`, sha: COMMIT });
     assert.deepEqual(requests[3]?.body, { force: false, sha: COMMIT });
     assert.equal(
@@ -288,7 +291,7 @@ test('createGitHubRequester rejects control-bearing paths and does not expose to
 });
 
 test('GitHubRepositoryApi fails safely on ref races and malformed API identities', async () => {
-    const branch = 'zolt/update/demo-0123456789';
+    const branch = 'zolt/update/demo-0123456789-aaaaaaaaaa';
     const requests: GitHubJsonRequest[] = [];
     const api = repositoryApi(requests, [
         { status: 422, value: { message: 'Update is not a fast forward' } },

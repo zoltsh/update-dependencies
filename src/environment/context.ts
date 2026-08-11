@@ -1,4 +1,5 @@
 import { lstat, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 import { actionError } from '../errors.js';
 
@@ -11,6 +12,7 @@ export interface ExecutionContext {
     readonly ref: string;
     readonly repository: string;
     readonly repositoryId: string;
+    readonly publicationGeneration: string;
     readonly sha: string;
     readonly workspace: string;
 }
@@ -58,6 +60,8 @@ export async function readExecutionContext(
         throw actionError('ZOLT-EVENT-006', 'The event repository does not match GITHUB_REPOSITORY.');
     }
     const repositoryId = positiveSafeInteger(payload.repository?.id, 'repository.id');
+    const runId = decimalIdentifier(environment.GITHUB_RUN_ID, 'GITHUB_RUN_ID');
+    const runAttempt = decimalIdentifier(environment.GITHUB_RUN_ATTEMPT, 'GITHUB_RUN_ATTEMPT');
     const defaultBranch = stringValue(payload.repository?.default_branch, 'repository.default_branch');
     const ref = required(environment.GITHUB_REF, 'GITHUB_REF');
     const expectedRef = `refs/heads/${defaultBranch}`;
@@ -74,6 +78,12 @@ export async function readExecutionContext(
         ref,
         repository,
         repositoryId,
+        publicationGeneration: createHash('sha256')
+            .update('zolt-update-dependencies-publication-generation-v1\0', 'utf8')
+            .update(runId, 'utf8')
+            .update('\0', 'utf8')
+            .update(runAttempt, 'utf8')
+            .digest('hex'),
         sha: sha.toLowerCase(),
         workspace: required(environment.GITHUB_WORKSPACE, 'GITHUB_WORKSPACE'),
     };
@@ -107,4 +117,12 @@ function positiveSafeInteger(value: unknown, name: string): string {
         throw actionError('ZOLT-EVENT-010', `${name} is missing or invalid.`);
     }
     return value.toString();
+}
+
+function decimalIdentifier(value: string | undefined, name: string): string {
+    const identifier = required(value, name);
+    if (!/^[1-9][0-9]{0,39}$/u.test(identifier)) {
+        throw actionError('ZOLT-EVENT-010', `${name} is invalid.`);
+    }
+    return identifier;
 }

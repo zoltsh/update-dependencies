@@ -12,6 +12,7 @@ import { TEST_TARGET_ID } from './support/fixtures.js';
 const TARGET_ID = TEST_TARGET_ID;
 const MARKER: ManagedPullRequestMarker = {
     baseSha: 'a'.repeat(40),
+    branchGeneration: 'a'.repeat(40),
     lockfilePath: 'services/api/zolt.lock',
     managedHeadSha: 'b'.repeat(40),
     managedId: managedTargetIdentity('services/api', TARGET_ID).managedId,
@@ -70,5 +71,9 @@ test('managed marker rendering rejects paths outside the selected Zolt root', ()
     assert.throws(
         () => renderManagedMarker({ ...MARKER, targetVersion: ' 1.1.0' }),
         /invalid targetVersion/u,
+    );
+    assert.throws(
+        () => renderManagedMarker({ ...MARKER, branchGeneration: 'short' }),
+        /invalid branchGeneration/u,
     );
 });

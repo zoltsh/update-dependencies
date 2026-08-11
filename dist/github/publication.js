@@ -14,12 +14,13 @@ export class ManagedPublicationFailure extends UpdateDependenciesError {
 export async function publishManagedPullRequests(input, dependencies) {
     const api = dependencies.repositoryApi;
     const desired = input.targets.map((target) => ({
-        preview: renderPullRequestPreview(target),
+        preview: renderPullRequestPreview(target, input.branchGeneration),
         target,
     }));
     const existing = await api.listOpenPullRequests();
     const reconciliation = reconcileManagedPullRequests({
         baseSha: input.baseSha,
+        branchGeneration: input.branchGeneration,
         defaultBranch: input.defaultBranch,
         desired,
         existing,
@@ -108,7 +109,7 @@ async function refreshPullRequest(input, matched, artifact, api, visibleWrites) 
     await api.fastForwardGeneratedBranch(existing.branch, commit);
     visibleWrites.push(Object.freeze({ branch: existing.branch, kind: 'branch-updated', sha: commit }));
     await requireWriteBoundary(input, api, existing.branch, commit);
-    const rendered = renderManagedPullRequest(desired.target, input.baseSha, commit);
+    const rendered = renderManagedPullRequest(desired.target, input.baseSha, commit, matched.marker.branchGeneration);
     await api.updatePullRequest(existing.number, {
         baseBranch: input.defaultBranch,
         body: rendered.body,
@@ -122,7 +123,7 @@ async function refreshPullRequest(input, matched, artifact, api, visibleWrites) 
     }));
 }
 async function createPullRequest(input, target, artifact, api, visibleWrites) {
-    const preview = renderPullRequestPreview(target);
+    const preview = renderPullRequestPreview(target, input.branchGeneration);
     await requireWriteBoundary(input, api, preview.branch, null);
     const commit = await api.createManagedCommit({
         baseSha: input.baseSha,
@@ -133,7 +134,7 @@ async function createPullRequest(input, target, artifact, api, visibleWrites) {
     await api.createGeneratedBranch(preview.branch, commit);
     visibleWrites.push(Object.freeze({ branch: preview.branch, kind: 'branch-created', sha: commit }));
     await requireWriteBoundary(input, api, preview.branch, commit);
-    const rendered = renderManagedPullRequest(target, input.baseSha, commit);
+    const rendered = renderManagedPullRequest(target, input.baseSha, commit, input.branchGeneration);
     const number = await api.createPullRequest({
         baseBranch: input.defaultBranch,
         body: rendered.body,

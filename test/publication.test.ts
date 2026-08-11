@@ -43,8 +43,8 @@ test('publication creates a branch and pull request from one verified exact arti
 
     assert.deepEqual(prepared, [target.managedId]);
     assert.deepEqual(result.visibleWrites, [
-        { branch: renderPullRequestPreview(target).branch, kind: 'branch-created', sha: NEW_HEAD_SHA },
-        { branch: renderPullRequestPreview(target).branch, kind: 'pull-request-created', number: 101 },
+        { branch: renderPullRequestPreview(target, BASE_SHA).branch, kind: 'branch-created', sha: NEW_HEAD_SHA },
+        { branch: renderPullRequestPreview(target, BASE_SHA).branch, kind: 'pull-request-created', number: 101 },
     ]);
     assert.equal(api.commitInputs[0]?.previousManagedHead, undefined);
     const pullRequest = api.createdPullRequests[0];
@@ -143,7 +143,7 @@ test('publication aborts when the default branch advances before ref publication
         }),
         /default branch advanced after planning/u,
     );
-    assert.equal(api.branches.has(renderPullRequestPreview(target).branch), false);
+    assert.equal(api.branches.has(renderPullRequestPreview(target, BASE_SHA).branch), false);
     assert.deepEqual(api.createdPullRequests, []);
 });
 
@@ -179,7 +179,7 @@ test('publication reports every completed visible write after a partial API fail
     assert.ok(failure instanceof ManagedPublicationFailure);
     assert.deepEqual(failure.visibleWrites, [
         { branch: existing.branch, kind: 'pull-request-closed', number: 41 },
-        { branch: renderPullRequestPreview(replacement).branch, kind: 'branch-created', sha: NEW_HEAD_SHA },
+        { branch: renderPullRequestPreview(replacement, BASE_SHA).branch, kind: 'branch-created', sha: NEW_HEAD_SHA },
     ]);
     assert.match(failure.message, /pull-request-closed:#41/u);
     assert.match(failure.message, /branch-created:/u);
@@ -200,7 +200,7 @@ test('publication prepares every artifact before making a safe close visible', a
         /artifact preparation failed/u,
     );
     assert.deepEqual(api.closedPullRequests, []);
-    assert.equal(api.branches.has(renderPullRequestPreview(replacement).branch), false);
+    assert.equal(api.branches.has(renderPullRequestPreview(replacement, BASE_SHA).branch), false);
 });
 
 function plannedTarget(identifier = 'com.example:demo'): PlannedUpdate {
@@ -221,6 +221,7 @@ function publicationInput(targets: readonly PlannedUpdate[]): ManagedPublication
     return {
         baseSha: BASE_SHA,
         binary: '/verified/zolt',
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         environment: {},
         includePrereleases: false,

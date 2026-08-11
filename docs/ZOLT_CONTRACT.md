@@ -5,8 +5,7 @@ The public Action pins immutable Zolt release
 `ae6532ef804c6347c6b1e72742216b9443c6c288`, and selects its schema-v2
 exact-target contract. All four archive digests are embedded and independently
 verified; CI also runs the contract suite against every released platform
-binary. Write mode stays closed until publication canaries pass and the dormant
-orchestrator is explicitly wired into the Action.
+binary. Write mode accepts only authoritative targets from this contract.
 
 ## Canonical target inventory
 
@@ -167,8 +166,10 @@ repository-relative selected Zolt root
 authoritative Zolt target ID
 ```
 
-The destination version is excluded, allowing one stable branch and PR to
-refresh to later targets.
+The destination version is excluded, allowing one managed PR to refresh to
+later targets. Published branch names also include a per-run generation so
+branches left by safely closed PRs cannot collide with a future update for the
+same target.
 
 ## Offline direct-dependency inventory
 

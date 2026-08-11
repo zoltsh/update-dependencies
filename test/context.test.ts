@@ -15,6 +15,8 @@ function environment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
         GITHUB_EVENT_PATH: '/event.json',
         GITHUB_REF: 'refs/heads/main',
         GITHUB_REPOSITORY: 'zoltsh/example',
+        GITHUB_RUN_ATTEMPT: '1',
+        GITHUB_RUN_ID: '123456789',
         GITHUB_SERVER_URL: 'https://github.com',
         GITHUB_SHA: 'a'.repeat(40),
         GITHUB_WORKSPACE: '/repo',
@@ -27,7 +29,13 @@ test('readExecutionContext accepts an exact default-branch event', async () => {
     assert.equal(context.defaultBranch, 'main');
     assert.equal(context.repository, 'zoltsh/example');
     assert.equal(context.repositoryId, '123456');
+    assert.match(context.publicationGeneration, /^[0-9a-f]{64}$/u);
     assert.equal(context.sha, 'a'.repeat(40));
+    const retry = await readExecutionContext(
+        environment({ GITHUB_RUN_ATTEMPT: '2' }),
+        async () => payload,
+    );
+    assert.notEqual(retry.publicationGeneration, context.publicationGeneration);
 });
 
 test('readExecutionContext rejects pull requests, non-default refs, and repository mismatches', async () => {
@@ -50,5 +58,9 @@ test('readExecutionContext rejects pull requests, non-default refs, and reposito
             repository: { default_branch: 'main', full_name: 'zoltsh/example', id: 0 },
         })),
         /repository\.id is missing or invalid/u,
+    );
+    await assert.rejects(
+        readExecutionContext(environment({ GITHUB_RUN_ATTEMPT: '0' }), async () => payload),
+        /GITHUB_RUN_ATTEMPT is invalid/u,
     );
 });

@@ -166,6 +166,8 @@ test('runExactUpdate invokes one authoritative target and exact destination', as
         '--schema-version',
         '2',
         '--include-prereleases',
+        '--cwd',
+        '/private/repository',
     ]);
     assert.equal(result, expected);
 });
@@ -180,8 +182,8 @@ test('verifyLockedOffline adds workspace routing without another metadata operat
     await verifyLockedOffline('/verified/zolt', { mode: 'workspace' }, '/workspace', {}, { run });
 
     assert.deepEqual(observed, [
-        ['--color', 'never', '--progress', 'never', 'resolve', '--locked', '--offline'],
-        ['--color', 'never', '--progress', 'never', 'resolve', '--workspace', '--locked', '--offline'],
+        ['--color', 'never', '--progress', 'never', 'resolve', '--locked', '--offline', '--cwd', '/project'],
+        ['--color', 'never', '--progress', 'never', 'resolve', '--workspace', '--locked', '--offline', '--cwd', '/workspace'],
     ]);
 });
 

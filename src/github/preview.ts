@@ -2,7 +2,10 @@ import { branchSlug } from '../planner/identity.js';
 import type { CompactPlanItem, PlannedUpdate, PullRequestPreview } from '../types.js';
 import { renderManagedMarker } from './managed-marker.js';
 
-export function renderPullRequestPreview(target: PlannedUpdate): PullRequestPreview {
+export function renderPullRequestPreview(
+    target: PlannedUpdate,
+    branchGeneration = '0'.repeat(40),
+): PullRequestPreview {
     const markerPayload = Buffer.from(JSON.stringify({
         authoritativeTarget: target.authoritativeTarget,
         lockfilePath: target.lockfilePath,
@@ -13,18 +16,20 @@ export function renderPullRequestPreview(target: PlannedUpdate): PullRequestPrev
     }), 'utf8').toString('base64url');
     const marker = `<!-- zolt-update-dependencies:preview-v2:${markerPayload} -->`;
     const verification = target.authoritativeTarget
-        ? 'The pinned Zolt schema-v2 release supplied the canonical target identity and manifest/root-lock paths. The isolated exact-update executor and dormant publication orchestrator are available; public write mode remains disabled until live publication canaries and Action wiring are complete.'
+        ? 'The pinned Zolt schema-v2 release supplied the canonical target identity and manifest/root-lock paths. Write mode applies this target in isolation and completes locked offline verification before publication.'
         : 'This target came from schema v1. The action will not execute it until the pinned Zolt release supplies canonical schema-v2 identity and paths.';
-    return renderPullRequest(target, marker, verification);
+    return renderPullRequest(target, marker, verification, branchGeneration);
 }
 
 export function renderManagedPullRequest(
     target: PlannedUpdate,
     baseSha: string,
     managedHeadSha: string,
+    branchGeneration = baseSha,
 ): PullRequestPreview {
     const marker = renderManagedMarker({
         baseSha,
+        branchGeneration,
         lockfilePath: target.lockfilePath,
         managedHeadSha,
         managedId: target.managedId,
@@ -38,6 +43,7 @@ export function renderManagedPullRequest(
         target,
         marker,
         'Zolt supplied the canonical target identity and manifest/root-lock paths. The isolated exact update and locked offline verification completed before this branch was published.',
+        branchGeneration,
     );
 }
 
@@ -45,8 +51,9 @@ function renderPullRequest(
     target: PlannedUpdate,
     marker: string,
     verification: string,
+    branchGeneration: string,
 ): PullRequestPreview {
-    const branch = `zolt/update/${branchSlug(target.identifier)}-${target.branchHash}`;
+    const branch = managedBranch(target, branchGeneration);
     const title = truncate(
         `build(deps): bump ${target.identifier} from ${target.currentVersion} to ${target.targetVersion}`,
         240,
@@ -85,6 +92,13 @@ ${verification}
 ${marker}
 `;
     return Object.freeze({ body, branch, marker, title });
+}
+
+export function managedBranch(target: PlannedUpdate, branchGeneration: string): string {
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(branchGeneration)) {
+        throw new TypeError('Managed branch generation requires a full generation digest.');
+    }
+    return `zolt/update/${branchSlug(target.identifier)}-${target.branchHash}-${branchGeneration.slice(0, 10)}`;
 }
 
 export function compactPreview(target: PlannedUpdate, preview: PullRequestPreview): CompactPlanItem {

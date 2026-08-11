@@ -1,9 +1,7 @@
 # Architecture
 
 `update-dependencies` turns dependency-update candidates reported by one
-verified Zolt binary into deterministic managed pull-request intent. The public
-Action remains planning-only, but the second implementation batch contains the
-contract-ready exact-update and reconciliation kernels behind that closed gate.
+verified Zolt binary into deterministic managed pull requests.
 
 ```text
 trusted event + exact GITHUB_SHA
@@ -21,10 +19,13 @@ trusted event + exact GITHUB_SHA
  policy + limit + managed identity
               |
               v
- PR title, branch, marker, and job summary preview
+ policy + managed pull-request reconciliation
               |
               v
-       publication gate (closed)
+ isolated exact update + locked offline verification
+              |
+              v
+ non-force GitHub branch and pull-request publication
 ```
 
 The pinned Zolt release is built from reviewed source commit
@@ -33,9 +34,7 @@ Production metadata contains the four independently verified archive digests.
 CI both builds that exact source and runs the same exact-target contract suite
 against each released platform binary.
 
-## Contract-ready execution path
-
-The repository also implements this dormant path:
+## Exact execution path
 
 ```text
 authoritative schema-v2 target
@@ -74,7 +73,7 @@ rewrite of an already-changed file cannot hide behind an unchanged path list.
 | `planner` | Select policy-compliant updates and derive repository-scoped managed identities |
 | `update` | Execute one exact target in isolation and produce verified changed-file bytes |
 | `github` | Render previews, encode markers, reconcile managed PRs, and expose bounded Git-data/PR API operations |
-| `main` | Compose the public planning path and guarantee cleanup on success or failure |
+| `main` | Compose planning or publication and guarantee cleanup on success or failure |
 
 ## Rules
 
@@ -111,8 +110,8 @@ rewrite of an already-changed file cannot hide behind an unchanged path list.
 16. GitHub writes use bounded JSON responses, base-tree Git objects, and only
     non-force generated-branch ref updates. Refresh commits retain the previous
     managed head as a parent so a racing human change cannot be overwritten.
-17. `dry-run: false` still fails before repository mutation or GitHub API calls
-    in the public Action.
+17. `dry-run: true` performs no GitHub writes. `dry-run: false` accepts only
+    authoritative schema-v2 targets.
 18. Public diagnostics are bounded, control-stripped, and redacted.
 19. Temporary installations, credential homes, repository views, and mutable
     copies clean up independently; cleanup failure fails the Action.
@@ -145,7 +144,7 @@ open pull-request metadata. A final managed marker records:
 - Zolt target ID and root;
 - manifest and root-lock paths;
 - exact destination version;
-- base commit and destination version last published;
+- base commit and branch generation;
 - the exact branch head last written by the Action.
 
 A branch is refreshable only when its current head still equals the marker's
@@ -158,9 +157,8 @@ branches are ignored rather than allowed to consume managed-PR capacity.
 Blocked local managed PRs count against the concurrent open-PR limit so the
 Action never creates a duplicate to work around an unsafe existing branch.
 
-## Dormant publication orchestration
+## Publication orchestration
 
-The GitHub API primitives and their orchestrator are implemented but dormant.
 The orchestrator composes reconciliation and exact artifacts in this order:
 
 ```text
@@ -186,9 +184,10 @@ completed branch or pull-request write so recovery does not depend on guessing.
 The client does not use checkout credentials or `git push`; it accepts only
 GitHub.com, bounds responses, validates response identities, and never offers a
 force-update option. Maven credentials and GitHub write credentials remain in
-separate adapters. The publication gate can open only after a real pinned Zolt
-v2 release and live create/refresh/no-op/close/private-registry canaries pass,
-then `runAction` explicitly composes this dormant module.
+separate adapters. Branch names include the target identity and base-commit
+generation derived from the GitHub run ID and attempt, so a safely closed PR
+cannot leave a stale branch that collides with a later update for the same
+dependency. Refreshes preserve the original branch generation.
 
 ## Source-contract boundary
 
@@ -206,5 +205,4 @@ Each Action release owns its embedded Zolt version and declared machine schema.
 Changing the schema selector is an explicit release-metadata and fixture change.
 Schema-v1 preview identities are not compatibility promises. The schema-v2
 contract, `zud1_` derivation, managed marker v1, reconciliation safety rules,
-and changed-file policy become public release contracts only when write mode is
-published.
+and changed-file policy are public write-mode release contracts.

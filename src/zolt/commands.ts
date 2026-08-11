@@ -76,6 +76,7 @@ export async function runExactUpdate(
         '2',
     ];
     if (request.includePrereleases) arguments_.push('--include-prereleases');
+    arguments_.push('--cwd', cwd);
     const result = await runMachineCommand(
         () => (dependencies.run ?? runZolt)(binary, arguments_, cwd, environment, 120_000),
         'update',
@@ -94,7 +95,7 @@ export async function verifyLockedOffline(
 ): Promise<void> {
     const arguments_ = ['--color', 'never', '--progress', 'never', 'resolve'];
     if (selection.mode === 'workspace') arguments_.push('--workspace');
-    arguments_.push('--locked', '--offline');
+    arguments_.push('--locked', '--offline', '--cwd', cwd);
     const result = await (dependencies.run ?? runZolt)(binary, arguments_, cwd, environment, 120_000);
     requireQuietStderr(result.stderr, 'locked offline verification');
 }

@@ -2,7 +2,7 @@ import { MAX_UPDATE_ARTIFACT_BYTES } from '../constants.js';
 import { actionError } from '../errors.js';
 import { canonicalRelativeFile } from '../paths.js';
 const FULL_SHA_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const GENERATED_BRANCH_PATTERN = /^zolt\/update\/[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?-[0-9a-f]{10}$/u;
+const GENERATED_BRANCH_PATTERN = /^zolt\/update\/[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?-[0-9a-f]{10}-[0-9a-f]{10}$/u;
 const NAME_PATTERN = /^[A-Za-z0-9_.-]+$/u;
 const MAX_PULL_REQUEST_BODY_BYTES = 128 * 1024;
 export function canonicalCommitFiles(files) {

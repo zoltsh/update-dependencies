@@ -37,8 +37,11 @@ function targets(): readonly PlannedUpdate[] {
     ).eligible;
 }
 
-function desired(targets_: readonly PlannedUpdate[]): readonly DesiredManagedPullRequest[] {
-    return targets_.map((target) => ({ preview: renderPullRequestPreview(target), target }));
+function desired(
+    targets_: readonly PlannedUpdate[],
+    baseSha = BASE_SHA,
+): readonly DesiredManagedPullRequest[] {
+    return targets_.map((target) => ({ preview: renderPullRequestPreview(target, baseSha), target }));
 }
 
 function managedPullRequest(
@@ -50,6 +53,7 @@ function managedPullRequest(
         baseBranch: 'main',
         body: renderManagedMarker({
             baseSha: BASE_SHA,
+            branchGeneration: BASE_SHA,
             lockfilePath: target.lockfilePath,
             managedHeadSha: HEAD_SHA,
             managedId: target.managedId,
@@ -59,7 +63,7 @@ function managedPullRequest(
             targetVersion: target.targetVersion,
             zoltRoot: target.zoltRoot,
         }),
-        branch: renderPullRequestPreview(target).branch,
+        branch: renderPullRequestPreview(target, BASE_SHA).branch,
         headRepositoryId: REPOSITORY_ID,
         headSha: HEAD_SHA,
         number,
@@ -73,8 +77,9 @@ test('reconciliation refreshes existing targets and fills only remaining open-PR
     assert.ok(first);
     const result = reconcileManagedPullRequests({
         baseSha: ADVANCED_BASE_SHA,
+        branchGeneration: ADVANCED_BASE_SHA,
         defaultBranch: 'main',
-        desired: desired(eligible),
+        desired: desired(eligible, ADVANCED_BASE_SHA),
         existing: [
             managedPullRequest(10, first),
             { baseBranch: 'main', body: 'not managed', branch: 'feature', headRepositoryId: REPOSITORY_ID, headSha: HEAD_SHA, number: 11 },
@@ -102,6 +107,7 @@ test('reconciliation leaves a matching managed PR unchanged on an idempotent rer
     assert.ok(first);
     const result = reconcileManagedPullRequests({
         baseSha: BASE_SHA,
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         desired: desired(eligible),
         existing: [managedPullRequest(15, first)],
@@ -133,6 +139,7 @@ test('reconciliation closes safe obsolete targets and reuses their capacity', ()
     };
     const result = reconcileManagedPullRequests({
         baseSha: BASE_SHA,
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         desired: desired(eligible.slice(0, 2)),
         existing: [managedPullRequest(20, obsolete)],
@@ -151,6 +158,7 @@ test('reconciliation never refreshes, closes, or duplicates a human-modified man
     assert.ok(first);
     const result = reconcileManagedPullRequests({
         baseSha: BASE_SHA,
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         desired: desired(eligible),
         existing: [managedPullRequest(30, first, { headSha: 'c'.repeat(40) })],
@@ -173,13 +181,14 @@ test('reconciliation blocks duplicate and malformed ownership markers', () => {
     const malformed: ExistingPullRequest = {
         baseBranch: 'main',
         body: '<!-- zolt-update-dependencies:v1:broken+payload -->',
-        branch: 'zolt/update/broken-0000000000',
+        branch: 'zolt/update/broken-0000000000-0000000000',
         headRepositoryId: REPOSITORY_ID,
         headSha: HEAD_SHA,
         number: 42,
     };
     const result = reconcileManagedPullRequests({
         baseSha: BASE_SHA,
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         desired: desired(eligible),
         existing: [duplicate, { ...duplicate, number: 41 }, malformed],
@@ -212,6 +221,7 @@ test('reconciliation will not close an obsolete marker copied onto an unrelated 
     };
     const result = reconcileManagedPullRequests({
         baseSha: BASE_SHA,
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         desired: desired(eligible),
         existing: [managedPullRequest(50, obsolete, { branch: 'user/copied-marker' })],
@@ -231,6 +241,7 @@ test('reconciliation retains temporarily blocked authoritative targets instead o
     assert.ok(first);
     const result = reconcileManagedPullRequests({
         baseSha: BASE_SHA,
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         desired: desired(eligible.slice(1)),
         existing: [managedPullRequest(60, first)],
@@ -250,6 +261,7 @@ test('reconciliation ignores copied markers from forks or a different base branc
     assert.ok(first);
     const result = reconcileManagedPullRequests({
         baseSha: BASE_SHA,
+        branchGeneration: BASE_SHA,
         defaultBranch: 'main',
         desired: desired(eligible),
         existing: [
@@ -282,6 +294,7 @@ test('reconciliation rejects forged desired identities and file boundaries', () 
     assert.throws(
         () => reconcileManagedPullRequests({
             baseSha: BASE_SHA,
+            branchGeneration: BASE_SHA,
             defaultBranch: 'main',
             desired: [{ preview: { ...preview, branch: 'zolt/update/forged-0000000000' }, target: first }],
             existing: [],
@@ -293,6 +306,7 @@ test('reconciliation rejects forged desired identities and file boundaries', () 
     assert.throws(
         () => reconcileManagedPullRequests({
             baseSha: BASE_SHA,
+            branchGeneration: BASE_SHA,
             defaultBranch: 'main',
             desired: [{
                 preview,
