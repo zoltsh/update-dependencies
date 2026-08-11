@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+
+const typescript = resolve(import.meta.dirname, '..', 'node_modules', 'typescript', 'bin', 'tsc');
 
 export async function run(command, arguments_, options = {}) {
     await new Promise((resolve, reject) => {
@@ -19,6 +22,6 @@ export async function run(command, arguments_, options = {}) {
     });
 }
 
-export function tscCommand() {
-    return process.platform === 'win32' ? 'tsc.cmd' : 'tsc';
+export async function runTsc(arguments_, options = {}) {
+    await run(process.execPath, [typescript, ...arguments_], options);
 }

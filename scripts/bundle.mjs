@@ -1,12 +1,12 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { run, tscCommand } from './tooling.mjs';
+import { runTsc } from './tooling.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'dist');
 await rm(output, { force: true, recursive: true });
-await run(tscCommand(), ['-p', 'tsconfig.build.json'], { cwd: root });
+await runTsc(['-p', 'tsconfig.build.json'], { cwd: root });
 await mkdir(output, { recursive: true });
 await writeFile(
     resolve(output, 'licenses.txt'),

@@ -2,13 +2,13 @@ import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 
-import { run, tscCommand } from './tooling.mjs';
+import { runTsc } from './tooling.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const expected = resolve(root, 'dist');
 const temporary = await mkdtemp(join(tmpdir(), 'zolt-update-bundle-'));
 try {
-    await run(tscCommand(), ['-p', 'tsconfig.build.json', '--outDir', temporary], { cwd: root });
+    await runTsc(['-p', 'tsconfig.build.json', '--outDir', temporary], { cwd: root });
     const differences = await compareTrees(expected, temporary);
     if (differences.length !== 0) {
         throw new Error(`Committed dist/ is stale:\n${differences.map((value) => `- ${value}`).join('\n')}`);
