@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Open pull requests for Zolt dependency updates.",
+  "description": "Plan Zolt dependency updates safely.",
   "author": "zoltsh",
   "license": "MIT",
   "repository": {
