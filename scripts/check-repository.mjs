@@ -98,6 +98,17 @@ requireText(
     'test/fixtures/publication-canary',
     'The live publication canary must use the committed fixture.',
 );
+const publishedPreviewUses = [
+    ...publicationCanary.matchAll(
+        /^\s+uses: zoltsh\/update-dependencies@([0-9a-f]{40})$/gmu,
+    ),
+];
+if (
+    publishedPreviewUses.length !== 2 ||
+    publishedPreviewUses.some((match) => match[1] !== publishedPreviewUses[0]?.[1])
+) {
+    throw new Error('The live publication canary must use one published full-SHA Action twice.');
+}
 await access(resolve(root, 'test/fixtures/publication-canary/zolt.toml'));
 await access(resolve(root, 'test/fixtures/publication-canary/zolt.lock'));
 const checkMode = (await stat(resolve(root, 'scripts/check'))).mode;
