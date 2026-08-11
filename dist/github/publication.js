@@ -13,6 +13,7 @@ export class ManagedPublicationFailure extends UpdateDependenciesError {
 }
 export async function publishManagedPullRequests(input, dependencies) {
     const api = dependencies.repositoryApi;
+    const wait = dependencies.wait ?? waitFor;
     const desired = input.targets.map((target) => ({
         preview: renderPullRequestPreview(target, input.branchGeneration),
         target,
@@ -49,7 +50,7 @@ export async function publishManagedPullRequests(input, dependencies) {
             await refreshPullRequest(input, matched, requireArtifact(artifacts, matched.desired.target), api, visibleWrites);
         }
         for (const entry of reconciliation.create) {
-            await createPullRequest(input, entry.target, requireArtifact(artifacts, entry.target), api, visibleWrites);
+            await createPullRequest(input, entry.target, requireArtifact(artifacts, entry.target), api, visibleWrites, wait);
         }
     }
     catch (error) {
@@ -122,7 +123,7 @@ async function refreshPullRequest(input, matched, artifact, api, visibleWrites) 
         number: existing.number,
     }));
 }
-async function createPullRequest(input, target, artifact, api, visibleWrites) {
+async function createPullRequest(input, target, artifact, api, visibleWrites, wait) {
     const preview = renderPullRequestPreview(target, input.branchGeneration);
     await requireWriteBoundary(input, api, preview.branch, null);
     const commit = await api.createManagedCommit({
@@ -133,7 +134,7 @@ async function createPullRequest(input, target, artifact, api, visibleWrites) {
     await requireWriteBoundary(input, api, preview.branch, null);
     await api.createGeneratedBranch(preview.branch, commit);
     visibleWrites.push(Object.freeze({ branch: preview.branch, kind: 'branch-created', sha: commit }));
-    await requireWriteBoundary(input, api, preview.branch, commit);
+    await requireCreatedWriteBoundary(input, api, preview.branch, commit, wait);
     const rendered = renderManagedPullRequest(target, input.baseSha, commit, input.branchGeneration);
     const number = await api.createPullRequest({
         baseBranch: input.defaultBranch,
@@ -146,6 +147,20 @@ async function createPullRequest(input, target, artifact, api, visibleWrites) {
         kind: 'pull-request-created',
         number,
     }));
+}
+async function requireCreatedWriteBoundary(input, api, branch, expectedHead, wait) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+        await requireDefaultBranch(input, api);
+        const current = await api.getGeneratedBranchHead(branch);
+        if (current === expectedHead)
+            return;
+        if (current !== null) {
+            throw publicationError(`Managed branch ${branch} changed after creation.`);
+        }
+        if (attempt < 4)
+            await wait(200 * (attempt + 1));
+    }
+    throw publicationError(`Managed branch ${branch} was not readable after creation.`);
 }
 async function requireWriteBoundary(input, api, branch, expectedHead) {
     await requireDefaultBranch(input, api);
@@ -195,4 +210,7 @@ function failureReason(error) {
 }
 function publicationError(message) {
     return actionError('ZOLT-PUBLISH-001', message);
+}
+async function waitFor(milliseconds) {
+    await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

@@ -59,6 +59,25 @@ test('publication creates a branch and pull request from one verified exact arti
     }
 });
 
+test('publication tolerates a newly created branch becoming readable asynchronously', async () => {
+    const target = plannedTarget();
+    const api = new FakePublicationRepository([]);
+    api.missingCreatedHeadReads = 2;
+    const waits: number[] = [];
+
+    const result = await publishManagedPullRequests(publicationInput([target]), {
+        prepareArtifact: artifactPreparer([]),
+        repositoryApi: api,
+        wait: async (milliseconds) => { waits.push(milliseconds); },
+    });
+
+    assert.deepEqual(waits, [200, 400]);
+    assert.deepEqual(result.visibleWrites.map(({ kind }) => kind), [
+        'branch-created',
+        'pull-request-created',
+    ]);
+});
+
 test('publication leaves an identical managed pull request unchanged without preparing an artifact', async () => {
     const target = plannedTarget();
     const existing = managedPullRequest(17, target, BASE_SHA, OLD_HEAD_SHA);
@@ -308,6 +327,7 @@ class FakePublicationRepository implements ManagedPublicationRepository {
     defaultHead = BASE_SHA;
     failCreatePullRequest = false;
     failFastForward = false;
+    missingCreatedHeadReads = 0;
 
     readonly #openPullRequests: readonly ExistingPullRequest[];
 
@@ -331,6 +351,10 @@ class FakePublicationRepository implements ManagedPublicationRepository {
 
     async getGeneratedBranchHead(branch: string): Promise<string | null> {
         this.calls.push(`read-managed:${branch}`);
+        if (this.branches.has(branch) && this.missingCreatedHeadReads > 0) {
+            this.missingCreatedHeadReads -= 1;
+            return null;
+        }
         return this.branches.get(branch) ?? null;
     }
 
