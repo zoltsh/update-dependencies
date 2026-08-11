@@ -28,9 +28,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Create managed canary pull request
+      - name: Create managed canary pull request with published preview
         id: create
-        uses: ./
+        uses: zoltsh/update-dependencies@b4d167f1519162bfdf8aef555fd213e3ebe36f21
         with:
           directory: test/fixtures/publication-canary
           dry-run: false
@@ -49,7 +49,7 @@ jobs:
 
       - name: Repeat publication
         id: repeat
-        uses: ./
+        uses: zoltsh/update-dependencies@b4d167f1519162bfdf8aef555fd213e3ebe36f21
         with:
           directory: test/fixtures/publication-canary
           dry-run: false
