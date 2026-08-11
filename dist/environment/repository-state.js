@@ -1,13 +1,14 @@
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { lstat, mkdir, mkdtemp, readdir, realpath, rm } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { lstat, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
+import { join, posix, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { MAX_REPOSITORY_BLOB_BYTES, MAX_REPOSITORY_VIEW_BYTES, MAX_REPOSITORY_VIEW_ENTRIES, } from '../constants.js';
 import { actionError, UpdateDependenciesError } from '../errors.js';
+import { canonicalRelativeFile, containedRoot } from '../paths.js';
 import { execText } from '../process.js';
+import { inspectRepositoryTree, verifyRepositoryTree, } from './repository-tree.js';
 export async function createRepositoryView(input, dependencies = {}) {
     const environment = dependencies.environment ?? process.env;
     validateDirectoryInput(input.directory);
@@ -27,25 +28,16 @@ export async function createRepositoryView(input, dependencies = {}) {
     try {
         await mkdir(privateWorkspace, { mode: 0o700, recursive: true });
         await createArchive(repository, input.expectedSha, archive);
-        await execText('tar', ['-xf', archive, '-C', privateWorkspace], {
-            label: 'Immutable repository extraction',
-            maxBuffer: 1024 * 1024,
-            timeout: 120_000,
-        });
-        await verifyExtractedTree(privateWorkspace, entries);
-        const directory = containedPath(privateWorkspace, input.directory);
-        const info = await lstat(directory).catch((error) => {
-            throw actionError('ZOLT-REPOSITORY-011', `Selected directory does not exist at GITHUB_SHA: ${input.directory}.`, error);
-        });
-        if (!info.isDirectory() || info.isSymbolicLink()) {
-            throw actionError('ZOLT-REPOSITORY-011', `Selected directory is not a regular directory: ${input.directory}.`);
-        }
+        await extractArchive(archive, privateWorkspace, 'Immutable repository extraction');
+        await verifyRepositoryTree(privateWorkspace, entries);
+        const directory = await requireSelectedDirectory(privateWorkspace, input.directory);
         retained = true;
         return Object.freeze({
             cleanup: async () => rm(work, { force: true, recursive: true }),
+            createMutableCopy: async () => createMutableRepositoryCopy(work, archive, entries, input.directory),
             directory,
-            verify: async () => verifyExtractedTree(privateWorkspace, entries),
             directoryInput: input.directory,
+            verify: async () => verifyRepositoryTree(privateWorkspace, entries),
             workspace: privateWorkspace,
         });
     }
@@ -53,6 +45,46 @@ export async function createRepositoryView(input, dependencies = {}) {
         if (!retained)
             await rm(work, { force: true, recursive: true });
     }
+}
+async function createMutableRepositoryCopy(work, archive, entries, directoryInput) {
+    const root = await mkdtemp(join(work, 'mutable-'));
+    const workspace = join(root, 'repository');
+    let retained = false;
+    try {
+        await mkdir(workspace, { mode: 0o700, recursive: true });
+        await extractArchive(archive, workspace, 'Mutable repository extraction');
+        await verifyRepositoryTree(workspace, entries);
+        const directory = await requireSelectedDirectory(workspace, directoryInput);
+        retained = true;
+        return Object.freeze({
+            cleanup: async () => rm(root, { force: true, recursive: true }),
+            directory,
+            directoryInput,
+            inspectChanges: async () => inspectRepositoryTree(workspace, entries),
+            workspace,
+        });
+    }
+    finally {
+        if (!retained)
+            await rm(root, { force: true, recursive: true });
+    }
+}
+async function extractArchive(archive, workspace, label) {
+    await execText('tar', ['-xf', archive, '-C', workspace], {
+        label,
+        maxBuffer: 1024 * 1024,
+        timeout: 120_000,
+    });
+}
+async function requireSelectedDirectory(workspace, input) {
+    const directory = containedRoot(workspace, input, 'selected directory');
+    const info = await lstat(directory).catch((error) => {
+        throw actionError('ZOLT-REPOSITORY-011', `Selected directory does not exist at GITHUB_SHA: ${input}.`, error);
+    });
+    if (!info.isDirectory() || info.isSymbolicLink()) {
+        throw actionError('ZOLT-REPOSITORY-011', `Selected directory is not a regular directory: ${input}.`);
+    }
+    return directory;
 }
 async function requireRepositoryRoot(workspace) {
     const result = await execText('git', ['-C', workspace, 'rev-parse', '--show-toplevel'], {
@@ -85,10 +117,14 @@ async function readTree(repository, sha) {
         if (match === null)
             throw actionError('ZOLT-REPOSITORY-003', 'Could not decode the Git tree listing.');
         const [, mode, type, object, sizeText, entryPath] = match;
-        if (entryPath === undefined || mode === undefined || type === undefined || object === undefined || sizeText === undefined) {
+        if (entryPath === undefined
+            || mode === undefined
+            || type === undefined
+            || object === undefined
+            || sizeText === undefined) {
             throw actionError('ZOLT-REPOSITORY-003', 'Could not decode the Git tree listing.');
         }
-        validateTreePath(entryPath);
+        canonicalRelativeFile(entryPath, 'repository tree path');
         if (type !== 'blob' || mode === '120000' || mode === '160000' || sizeText === '-') {
             throw actionError('ZOLT-REPOSITORY-004', `Repository entry ${entryPath} is a symlink, submodule, or unsupported object.`);
         }
@@ -113,7 +149,7 @@ async function readTree(repository, sha) {
             throw actionError('ZOLT-REPOSITORY-008', 'Repository exceeds the immutable-view entry limit.');
         }
     }
-    return entries;
+    return Object.freeze(entries);
 }
 async function createArchive(repository, sha, destination) {
     const child = spawn('git', ['-C', repository, 'archive', '--format=tar', sha], {
@@ -148,122 +184,16 @@ async function createArchive(repository, sha, destination) {
         throw actionError('ZOLT-REPOSITORY-010', 'Could not create the immutable repository archive.', error);
     }
 }
-async function verifyExtractedTree(root, entries) {
-    const expectedFiles = new Map(entries.map((entry) => [entry.path, entry]));
-    const expectedDirectories = expectedDirectoryPaths(entries);
-    const seenFiles = new Set();
-    const seenDirectories = new Set();
-    await visit(root, '');
-    if (seenFiles.size !== expectedFiles.size || seenDirectories.size !== expectedDirectories.size) {
-        throw actionError('ZOLT-REPOSITORY-009', 'The immutable repository view gained or lost entries during analysis.');
-    }
-    for (const path of expectedFiles.keys()) {
-        if (!seenFiles.has(path)) {
-            throw actionError('ZOLT-REPOSITORY-009', `Immutable repository entry changed during analysis: ${path}.`);
-        }
-    }
-    for (const path of expectedDirectories) {
-        if (!seenDirectories.has(path)) {
-            throw actionError('ZOLT-REPOSITORY-009', `Immutable repository directory changed during analysis: ${path}.`);
-        }
-    }
-    async function visit(directory, prefix) {
-        const children = await readdir(directory, { withFileTypes: true });
-        children.sort((left, right) => left.name.localeCompare(right.name));
-        for (const child of children) {
-            const path = prefix === '' ? child.name : `${prefix}/${child.name}`;
-            validateTreePath(path);
-            const candidate = containedPath(root, path);
-            const info = await lstat(candidate);
-            if (info.isSymbolicLink()) {
-                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository entry became a symbolic link: ${path}.`);
-            }
-            if (info.isDirectory()) {
-                if (!expectedDirectories.has(path)) {
-                    throw actionError('ZOLT-REPOSITORY-009', `Immutable repository view contains an unexpected directory: ${path}.`);
-                }
-                seenDirectories.add(path);
-                await visit(candidate, path);
-                continue;
-            }
-            if (!info.isFile()) {
-                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository view contains an unsupported entry: ${path}.`);
-            }
-            const entry = expectedFiles.get(path);
-            if (entry === undefined || seenFiles.has(path)) {
-                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository view contains an unexpected file: ${path}.`);
-            }
-            const executable = (info.mode & 0o111) !== 0;
-            if (info.size !== entry.size || executable !== (entry.mode === '100755')) {
-                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository entry changed during analysis: ${path}.`);
-            }
-            if (await gitBlobId(candidate, info.size, entry.object.length) !== entry.object) {
-                throw actionError('ZOLT-REPOSITORY-009', `Immutable repository bytes changed during analysis: ${path}.`);
-            }
-            seenFiles.add(path);
-        }
-    }
-}
-function expectedDirectoryPaths(entries) {
-    const directories = new Set();
-    for (const entry of entries) {
-        const parts = entry.path.split('/');
-        for (let index = 1; index < parts.length; index += 1) {
-            directories.add(parts.slice(0, index).join('/'));
-        }
-    }
-    return directories;
-}
-async function gitBlobId(path, size, objectLength) {
-    const algorithm = objectLength === 40 ? 'sha1' : objectLength === 64 ? 'sha256' : undefined;
-    if (algorithm === undefined) {
-        throw actionError('ZOLT-REPOSITORY-003', 'The repository uses an unsupported Git object format.');
-    }
-    const digest = createHash(algorithm);
-    digest.update(`blob ${size.toString()}\0`, 'utf8');
-    for await (const chunk of createReadStream(path))
-        digest.update(chunk);
-    return digest.digest('hex');
-}
 function validateExpectedSha(value) {
     if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(value)) {
         throw actionError('ZOLT-REPOSITORY-013', 'expectedSha must be a full 40- or 64-character commit SHA.');
     }
 }
 function validateDirectoryInput(value) {
-    if (value === ''
-        || value.includes('\\')
-        || value.includes('\0')
-        || /[\u0000-\u001F\u007F]/u.test(value)
-        || posix.isAbsolute(value)) {
-        throw actionError('ZOLT-REPOSITORY-012', `Selected directory is unsafe: ${JSON.stringify(value)}.`);
+    if (value === '.')
+        return;
+    canonicalRelativeFile(value, 'selected directory');
+    if (posix.normalize(value) !== value) {
+        throw actionError('ZOLT-REPOSITORY-012', `Selected directory is not canonical: ${JSON.stringify(value)}.`);
     }
-    const normalized = posix.normalize(value);
-    if (normalized !== value || normalized === '..' || normalized.startsWith('../')) {
-        throw actionError('ZOLT-REPOSITORY-012', `Selected directory is not canonical or escapes the repository: ${JSON.stringify(value)}.`);
-    }
-}
-function validateTreePath(value) {
-    if (value === ''
-        || value.includes('\\')
-        || value.includes('\0')
-        || /[\u0000-\u001F\u007F]/u.test(value)
-        || posix.isAbsolute(value)) {
-        throw actionError('ZOLT-REPOSITORY-012', `Repository contains an unsafe path: ${JSON.stringify(value)}.`);
-    }
-    const normalized = posix.normalize(value);
-    if (normalized !== value || normalized === '..' || normalized.startsWith('../')) {
-        throw actionError('ZOLT-REPOSITORY-012', `Repository contains an unsafe path: ${JSON.stringify(value)}.`);
-    }
-}
-function containedPath(root, value) {
-    if (isAbsolute(value)) {
-        throw actionError('ZOLT-REPOSITORY-012', `Path is not repository-relative: ${JSON.stringify(value)}.`);
-    }
-    const candidate = resolve(root, value);
-    const relation = relative(root, candidate);
-    if (relation === '..' || relation.startsWith(`..${sep}`) || isAbsolute(relation)) {
-        throw actionError('ZOLT-REPOSITORY-012', `Path escapes the immutable repository view: ${JSON.stringify(value)}.`);
-    }
-    return candidate;
 }

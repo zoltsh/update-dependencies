@@ -3,9 +3,15 @@ import test from 'node:test';
 
 import { compactPreview, renderPullRequestPreview } from '../src/github/preview.js';
 import { planUpdates } from '../src/planner/plan.js';
-import { actionInputs, outdatedReport, projectSelection } from './support/fixtures.js';
+import {
+    actionInputs,
+    outdatedReport,
+    outdatedReportV2,
+    projectSelection,
+    TEST_TARGET_ID,
+} from './support/fixtures.js';
 
-test('pull request previews have stable managed branch and ownership metadata', () => {
+test('schema-v1 pull request previews remain explicit provisional plans', () => {
     const target = planUpdates(outdatedReport(), projectSelection(), actionInputs()).selected[0];
     assert.ok(target);
     const first = renderPullRequestPreview(target);
@@ -13,7 +19,19 @@ test('pull request previews have stable managed branch and ownership metadata', 
 
     assert.deepEqual(first, second);
     assert.match(first.branch, /^zolt\/update\/demo-[0-9a-f]{10}$/u);
-    assert.match(first.marker, /^<!-- zolt-update-dependencies:preview-v1:/u);
-    assert.match(first.body, /deterministic planning preview/u);
-    assert.equal(compactPreview(target, first).provisionalTargetId, target.provisionalTargetId);
+    assert.match(first.marker, /^<!-- zolt-update-dependencies:preview-v2:/u);
+    assert.match(first.body, /schema v1/u);
+    assert.equal(compactPreview(target, first).targetId, target.targetId);
+    assert.equal(compactPreview(target, first).authoritativeTarget, false);
+});
+
+test('schema-v2 pull request previews use Zolt target and repository managed identity', () => {
+    const target = planUpdates(outdatedReportV2(), projectSelection(), actionInputs()).selected[0];
+    assert.ok(target);
+    const preview = renderPullRequestPreview(target);
+
+    assert.match(preview.body, new RegExp(TEST_TARGET_ID, 'u'));
+    assert.match(preview.body, /Managed identity/u);
+    assert.equal(compactPreview(target, preview).authoritativeTarget, true);
+    assert.match(compactPreview(target, preview).managedId, /^zud1_/u);
 });

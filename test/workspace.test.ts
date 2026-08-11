@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import type { RepositoryView } from '../src/types.js';
 import { selectZoltProject } from '../src/zolt/workspace.js';
+import { repositoryView } from './support/fixtures.js';
 
 test('selectZoltProject discovers a modern workspace above the selected member', async (context) => {
     const root = await mkdtemp(join(tmpdir(), 'zolt-workspace-test-'));
@@ -42,12 +42,7 @@ test('selectZoltProject supports legacy workspaces and standalone projects', asy
     assert.equal(standalone.manifestPath, 'standalone/zolt.toml');
 });
 
-function repository(workspace: string, directory: string, directoryInput: string): RepositoryView {
-    return {
-        cleanup: async () => undefined,
-        directory,
-        verify: async () => undefined,
-        directoryInput,
-        workspace,
-    };
+
+function repository(workspace: string, directory: string, directoryInput: string) {
+    return repositoryView({ directory, directoryInput, workspace });
 }

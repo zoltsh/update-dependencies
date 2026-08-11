@@ -1,8 +1,9 @@
 import { posix } from 'node:path';
 import { actionError } from '../errors.js';
-import { previewTargetIdentity } from './identity.js';
+import { canonicalRelativeFile, canonicalZoltManifestPath, canonicalZoltRootLockPath, joinRelativeRoot, } from '../paths.js';
+import { managedTargetIdentity, previewTargetId } from './identity.js';
 const CLASS_ORDER = new Map([['patch', 0], ['minor', 1], ['major', 2]]);
-const WRITABLE_SURFACES = new Set([
+const LEGACY_WRITABLE_SURFACES = new Set([
     'annotationProcessor',
     'dependency',
     'dependencyConstraint',
@@ -15,28 +16,27 @@ export function planUpdates(report, selection, inputs) {
     const outsidePolicy = [];
     const seen = new Set();
     for (const scope of report.scopes) {
-        const manifestPath = manifestForScope(selection, scope.label);
+        const paths = scopePaths(report.schemaVersion, selection, scope);
         for (const entry of scope.entries) {
-            const base = {
-                currentVersion: entry.current,
-                identifier: entry.identifier,
-                manifestPath,
-                notes: entry.notes,
-                scope: scope.label,
-                section: entry.section,
-                surface: entry.surface,
-            };
+            const authoritative = authoritativeEntry(entry);
+            const targetId = authoritative
+                ? entry.targetId
+                : previewTargetId({
+                    identifier: entry.identifier,
+                    manifestPath: paths.manifestPath,
+                    section: entry.section,
+                    surface: entry.surface,
+                });
+            const base = blockedBase(entry, scope.label, paths.manifestPath, targetId);
             if (entry.status === 'unknown') {
                 blocked.push(Object.freeze({ ...base, reason: 'Version discovery was unavailable.' }));
                 continue;
             }
             if (entry.status !== 'updateAvailable')
                 continue;
-            if (!WRITABLE_SURFACES.has(entry.surface)) {
-                blocked.push(Object.freeze({
-                    ...base,
-                    reason: 'The current Zolt update command cannot mutate this literal generated-tool surface.',
-                }));
+            const blocker = updateBlocker(entry);
+            if (blocker !== undefined) {
+                blocked.push(Object.freeze({ ...base, reason: blocker }));
                 continue;
             }
             const target = selectTarget(entry, inputs.updateCeiling);
@@ -50,31 +50,30 @@ export function planUpdates(report, selection, inputs) {
             if (target.version === entry.current) {
                 throw actionError('ZOLT-PLAN-001', 'Zolt reported the current version as an available update target.');
             }
-            const identity = previewTargetIdentity({
-                identifier: entry.identifier,
-                manifestPath,
-                section: entry.section,
-                surface: entry.surface,
-            });
-            if (seen.has(identity.provisionalTargetId)) {
-                throw actionError('ZOLT-PLAN-002', `Zolt returned duplicate logical update target ${identity.provisionalTargetId}.`);
+            if (seen.has(targetId)) {
+                throw actionError('ZOLT-PLAN-002', `Zolt returned duplicate logical update target ${targetId}.`);
             }
-            seen.add(identity.provisionalTargetId);
+            seen.add(targetId);
             eligible.push(Object.freeze({
-                ...identity,
+                authoritativeTarget: authoritative,
+                ...managedTargetIdentity(selection.relativeRoot, targetId),
                 changeClass: target.changeClass,
                 currentVersion: entry.current,
                 fanOut: entry.governs,
                 identifier: entry.identifier,
-                lockfilePath: selection.lockfilePath,
-                manifestPath,
+                lockfilePath: paths.lockfilePath,
+                manifestPath: paths.manifestPath,
                 members: entry.members,
                 notes: entry.notes,
                 scope: scope.label,
                 section: entry.section,
                 sourceRepository: entry.source,
                 surface: entry.surface,
+                targetId,
                 targetVersion: target.version,
+                zoltLockfilePath: paths.zoltLockfilePath,
+                zoltManifestPath: paths.zoltManifestPath,
+                zoltRoot: selection.relativeRoot,
             }));
         }
     }
@@ -111,9 +110,39 @@ function paired(version, changeClass, label) {
     }
     return { changeClass, version };
 }
-function manifestForScope(selection, label) {
+function scopePaths(schemaVersion, selection, scope) {
+    if (schemaVersion === 2)
+        return v2ScopePaths(selection, scope);
+    const zoltManifestPath = legacyManifestForScope(selection, scope.label);
+    const zoltLockfilePath = 'zolt.lock';
+    return {
+        lockfilePath: joinRelativeRoot(selection.relativeRoot, zoltLockfilePath, 'legacy lockfile path'),
+        manifestPath: joinRelativeRoot(selection.relativeRoot, zoltManifestPath, 'legacy manifest path'),
+        zoltLockfilePath,
+        zoltManifestPath,
+    };
+}
+function v2ScopePaths(selection, scope) {
+    const zoltManifestPath = canonicalZoltManifestPath(scope.manifestPath, 'Zolt manifest path');
+    const zoltLockfilePath = canonicalZoltRootLockPath(scope.lockfilePath, 'Zolt lockfile path');
+    if (selection.mode === 'project' && zoltManifestPath !== 'zolt.toml') {
+        throw actionError('ZOLT-PLAN-005', `Standalone Zolt reported manifest ${zoltManifestPath}; expected zolt.toml.`);
+    }
+    const manifestPath = joinRelativeRoot(selection.relativeRoot, zoltManifestPath, 'Zolt manifest path');
+    const lockfilePath = joinRelativeRoot(selection.relativeRoot, zoltLockfilePath, 'Zolt lockfile path');
+    if (lockfilePath !== selection.lockfilePath) {
+        throw actionError('ZOLT-PLAN-005', `Zolt reported lockfile ${lockfilePath}, but project selection requires ${selection.lockfilePath}.`);
+    }
+    return {
+        lockfilePath,
+        manifestPath,
+        zoltLockfilePath,
+        zoltManifestPath,
+    };
+}
+function legacyManifestForScope(selection, label) {
     if (selection.mode === 'project')
-        return selection.manifestPath;
+        return 'zolt.toml';
     if (label === ''
         || label.includes('\\')
         || label.includes('\0')
@@ -125,14 +154,36 @@ function manifestForScope(selection, label) {
     if (normalized !== label || normalized === '..' || normalized.startsWith('../')) {
         throw actionError('ZOLT-PLAN-004', `Workspace scope label is not a safe member path: ${JSON.stringify(label)}.`);
     }
-    const workspaceRoot = selection.relativeRoot === '.' ? '' : selection.relativeRoot;
     const member = normalized === '.' ? '' : normalized;
-    return posix.join(workspaceRoot, member, 'zolt.toml');
+    return canonicalRelativeFile(posix.join(member, 'zolt.toml'), 'legacy workspace manifest path');
+}
+function authoritativeEntry(entry) {
+    return 'targetId' in entry;
+}
+function updateBlocker(entry) {
+    if (authoritativeEntry(entry)) {
+        return entry.updateable ? undefined : entry.updateBlocker ?? 'Zolt cannot update this target.';
+    }
+    return LEGACY_WRITABLE_SURFACES.has(entry.surface)
+        ? undefined
+        : 'The pinned Zolt update command cannot mutate this literal generated-tool surface.';
+}
+function blockedBase(entry, scope, manifestPath, targetId) {
+    return {
+        currentVersion: entry.current,
+        identifier: entry.identifier,
+        manifestPath,
+        notes: entry.notes,
+        scope,
+        section: entry.section,
+        surface: entry.surface,
+        targetId,
+    };
 }
 function comparePlanned(left, right) {
     return (CLASS_ORDER.get(left.changeClass) ?? 99) - (CLASS_ORDER.get(right.changeClass) ?? 99)
         || left.manifestPath.localeCompare(right.manifestPath)
-        || left.provisionalTargetId.localeCompare(right.provisionalTargetId);
+        || left.targetId.localeCompare(right.targetId);
 }
 function compareBlocked(left, right) {
     return left.manifestPath.localeCompare(right.manifestPath)

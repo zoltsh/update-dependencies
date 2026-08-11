@@ -4,9 +4,9 @@ import test from 'node:test';
 import type { ExecutionContext } from '../src/environment/context.js';
 import type { InstalledZolt } from '../src/install/install-zolt.js';
 import { runAction } from '../src/main.js';
-import type { RepositoryView, ZoltProjectSelection } from '../src/types.js';
+import type { ZoltProjectSelection } from '../src/types.js';
 import type { ZoltEnvironment } from '../src/zolt/process.js';
-import { outdatedReport } from './support/fixtures.js';
+import { outdatedReport, repositoryView } from './support/fixtures.js';
 import { FakeActionCore } from './support/core.js';
 
 const execution: ExecutionContext = {
@@ -14,16 +14,11 @@ const execution: ExecutionContext = {
     eventName: 'schedule',
     ref: 'refs/heads/main',
     repository: 'zoltsh/example',
+    repositoryId: '123456',
     sha: 'a'.repeat(40),
     workspace: '/checkout',
 };
-const repository: RepositoryView = {
-    cleanup: async () => undefined,
-    verify: async () => undefined,
-    directory: '/private/repository',
-    directoryInput: '.',
-    workspace: '/private/repository',
-};
+const repository = repositoryView();
 const selection: ZoltProjectSelection = {
     lockfilePath: 'zolt.lock',
     manifestPath: 'zolt.toml',

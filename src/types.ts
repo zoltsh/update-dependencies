@@ -31,7 +31,7 @@ export interface OutdatedCandidates {
     readonly patch: string | null;
 }
 
-export interface OutdatedEntry {
+export interface OutdatedEntryBase {
     readonly candidates: OutdatedCandidates;
     readonly current: string;
     readonly governs: readonly string[];
@@ -48,18 +48,64 @@ export interface OutdatedEntry {
     readonly surface: OutdatedSurface;
 }
 
-export interface OutdatedScope {
-    readonly entries: readonly OutdatedEntry[];
+export type OutdatedEntryV1 = OutdatedEntryBase;
+
+export interface OutdatedEntryV2 extends OutdatedEntryBase {
+    readonly targetId: string;
+    readonly updateable: boolean;
+    readonly updateBlocker: string | null;
+}
+
+export interface OutdatedScopeV1 {
+    readonly entries: readonly OutdatedEntryV1[];
     readonly label: string;
 }
 
-export interface OutdatedReport {
+export interface OutdatedScopeV2 {
+    readonly entries: readonly OutdatedEntryV2[];
+    readonly label: string;
+    readonly lockfilePath: string;
+    readonly manifestPath: string;
+}
+
+export interface OutdatedReportV1 {
     readonly command: 'outdated';
     readonly diagnostics: readonly Diagnostic[];
     readonly notes: readonly string[];
     readonly schemaVersion: 1;
-    readonly scopes: readonly OutdatedScope[];
+    readonly scopes: readonly OutdatedScopeV1[];
     readonly status: 'ok';
+}
+
+export interface OutdatedReportV2 {
+    readonly command: 'outdated';
+    readonly diagnostics: readonly Diagnostic[];
+    readonly notes: readonly string[];
+    readonly schemaVersion: 2;
+    readonly scopes: readonly OutdatedScopeV2[];
+    readonly status: 'ok';
+}
+
+export type OutdatedEntry = OutdatedEntryV1 | OutdatedEntryV2;
+export type OutdatedScope = OutdatedScopeV1 | OutdatedScopeV2;
+export type OutdatedReport = OutdatedReportV1 | OutdatedReportV2;
+
+export interface RepositoryChangeSet {
+    readonly added: readonly string[];
+    readonly deleted: readonly string[];
+    readonly missingDirectories: readonly string[];
+    readonly modeChanged: readonly string[];
+    readonly modified: readonly string[];
+    readonly paths: readonly string[];
+    readonly unexpectedDirectories: readonly string[];
+}
+
+export interface MutableRepositoryCopy {
+    readonly directory: string;
+    readonly directoryInput: string;
+    readonly workspace: string;
+    cleanup(): Promise<void>;
+    inspectChanges(): Promise<RepositoryChangeSet>;
 }
 
 export interface RepositoryView {
@@ -67,6 +113,7 @@ export interface RepositoryView {
     readonly directoryInput: string;
     readonly workspace: string;
     cleanup(): Promise<void>;
+    createMutableCopy(): Promise<MutableRepositoryCopy>;
     verify(): Promise<void>;
 }
 
@@ -79,21 +126,26 @@ export interface ZoltProjectSelection {
 }
 
 export interface PlannedUpdate {
+    readonly authoritativeTarget: boolean;
     readonly branchHash: string;
     readonly changeClass: ChangeClass;
     readonly currentVersion: string;
     readonly fanOut: readonly string[];
     readonly identifier: string;
     readonly lockfilePath: string;
+    readonly managedId: string;
     readonly manifestPath: string;
     readonly members: readonly string[];
     readonly notes: readonly string[];
-    readonly provisionalTargetId: string;
     readonly scope: string;
     readonly section: string;
     readonly sourceRepository: string | null;
     readonly surface: OutdatedSurface;
+    readonly targetId: string;
     readonly targetVersion: string;
+    readonly zoltLockfilePath: string;
+    readonly zoltManifestPath: string;
+    readonly zoltRoot: string;
 }
 
 export interface BlockedUpdate {
@@ -105,6 +157,7 @@ export interface BlockedUpdate {
     readonly scope: string;
     readonly section: string;
     readonly surface: OutdatedSurface;
+    readonly targetId?: string;
 }
 
 export interface ExcludedUpdate extends BlockedUpdate {}
@@ -126,17 +179,60 @@ export interface PullRequestPreview {
 }
 
 export interface CompactPlanItem {
+    readonly authoritativeTarget: boolean;
     readonly branch: string;
     readonly changeClass: ChangeClass;
     readonly fanOut: readonly string[];
     readonly from: string;
     readonly identifier: string;
     readonly lockfilePath: string;
+    readonly managedId: string;
     readonly manifestPath: string;
     readonly members: readonly string[];
     readonly section: string;
     readonly surface: OutdatedSurface;
-    readonly provisionalTargetId: string;
+    readonly targetId: string;
     readonly title: string;
     readonly to: string;
+    readonly zoltRoot: string;
+}
+
+export interface ExactUpdateTarget {
+    readonly identifier: string;
+    readonly lockfilePath: string;
+    readonly manifestPath: string;
+    readonly section: string;
+    readonly surface: OutdatedSurface;
+    readonly targetId: string;
+    readonly updateable: true;
+}
+
+export interface ExactUpdateResult {
+    readonly applied: boolean;
+    readonly changed: boolean;
+    readonly changedFiles: readonly string[];
+    readonly changeClass: ChangeClass | null;
+    readonly command: 'update';
+    readonly diagnostics: readonly Diagnostic[];
+    readonly dryRun: boolean;
+    readonly fanOut: readonly string[];
+    readonly from: string;
+    readonly resolved: boolean;
+    readonly schemaVersion: 2;
+    readonly status: 'ok';
+    readonly target: ExactUpdateTarget;
+    readonly to: string;
+}
+
+export interface UpdateArtifactFile {
+    readonly content: Buffer;
+    readonly mode: '100644' | '100755';
+    readonly path: string;
+}
+
+export interface ExactUpdateArtifact {
+    readonly changedFiles: readonly string[];
+    readonly files: readonly UpdateArtifactFile[];
+    readonly result: ExactUpdateResult;
+    readonly target: PlannedUpdate;
 }

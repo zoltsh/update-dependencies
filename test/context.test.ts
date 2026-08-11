@@ -5,7 +5,7 @@ import { readExecutionContext } from '../src/environment/context.js';
 
 const payload = JSON.stringify({
     ref: 'refs/heads/main',
-    repository: { default_branch: 'main', full_name: 'zoltsh/example' },
+    repository: { default_branch: 'main', full_name: 'zoltsh/example', id: 123_456 },
 });
 
 function environment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
@@ -26,6 +26,7 @@ test('readExecutionContext accepts an exact default-branch event', async () => {
     const context = await readExecutionContext(environment(), async () => payload);
     assert.equal(context.defaultBranch, 'main');
     assert.equal(context.repository, 'zoltsh/example');
+    assert.equal(context.repositoryId, '123456');
     assert.equal(context.sha, 'a'.repeat(40));
 });
 
@@ -40,8 +41,14 @@ test('readExecutionContext rejects pull requests, non-default refs, and reposito
     );
     await assert.rejects(
         readExecutionContext(environment(), async () => JSON.stringify({
-            repository: { default_branch: 'main', full_name: 'other/repository' },
+            repository: { default_branch: 'main', full_name: 'other/repository', id: 123_456 },
         })),
         /does not match/u,
+    );
+    await assert.rejects(
+        readExecutionContext(environment(), async () => JSON.stringify({
+            repository: { default_branch: 'main', full_name: 'zoltsh/example', id: 0 },
+        })),
+        /repository\.id is missing or invalid/u,
     );
 });

@@ -8,26 +8,22 @@ import type { ExecutionContext } from '../src/environment/context.js';
 import { createRepositoryView } from '../src/environment/repository-state.js';
 import { publicJson } from '../src/public-output.js';
 import { runAction } from '../src/main.js';
-import type { RepositoryView, ZoltProjectSelection } from '../src/types.js';
+import type { ZoltProjectSelection } from '../src/types.js';
 import { selectZoltProject } from '../src/zolt/workspace.js';
 import { FakeActionCore } from './support/core.js';
+import { repositoryView } from './support/fixtures.js';
 
 const execution: ExecutionContext = {
     defaultBranch: 'main',
     eventName: 'schedule',
     ref: 'refs/heads/main',
     repository: 'zoltsh/example',
+    repositoryId: '123456',
     sha: 'a'.repeat(40),
     workspace: '/checkout',
 };
 
-const repository: RepositoryView = {
-    cleanup: async () => undefined,
-    verify: async () => undefined,
-    directory: '/private/repository',
-    directoryInput: '.',
-    workspace: '/private/repository',
-};
+const repository = repositoryView();
 
 const selection: ZoltProjectSelection = {
     lockfilePath: 'zolt.lock',
@@ -52,7 +48,7 @@ test('selectZoltProject reports both workspace formats at the repository root', 
     await writeFile(join(root, 'zolt.lock'), 'version = 5\n', 'utf8');
 
     await assert.rejects(
-        selectZoltProject({ cleanup: async () => undefined, verify: async () => undefined, directory: root, directoryInput: '.', workspace: root }, 'auto'),
+        selectZoltProject(repositoryView({ directory: root, workspace: root }), 'auto'),
         /Workspace at \. declares both/u,
     );
 });

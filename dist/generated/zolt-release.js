@@ -2,6 +2,7 @@
 // immutable Zolt release channel used by submit-dependencies.
 export const ZOLT_VERSION = '0.1.0-zap.20260806.5ba5361d856f';
 export const ZOLT_SOURCE_COMMIT = '5ba5361d856fd43d65e4ca2d933271a6eff01c3f';
+export const ZOLT_OUTDATED_SCHEMA_VERSION = 1;
 const tag = `zolt-zap-${ZOLT_VERSION}`;
 const base = `https://github.com/zoltsh/releases/releases/download/${tag}`;
 export const ZOLT_RELEASE = {

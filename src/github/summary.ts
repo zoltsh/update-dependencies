@@ -30,6 +30,7 @@ export function renderSummary(context: SummaryContext): string {
         `| \`${escapeCell(target.manifestPath)}\` | \`${escapeCell(target.identifier)}\` | ${escapeCell(target.reason)} |`,
     );
     const diagnostics = context.plan.diagnostics.map((message) => `- ${escapeCell(message)}`);
+    const authoritative = context.plan.selected.filter((target) => target.authoritativeTarget).length;
     return `# Zolt dependency update plan
 
 > Planning preview: no branches or pull requests were written.
@@ -39,6 +40,7 @@ export function renderSummary(context: SummaryContext): string {
 - Selection: ${context.selection.mode} at \`${escapeCell(context.selection.relativeRoot)}\`
 - Zolt: \`${escapeCell(context.installed.version)}\` from \`${ZOLT_SOURCE_COMMIT}\`
 - Policy: ${context.inputs.updateCeiling}, prereleases ${context.inputs.includePrereleases ? 'enabled' : 'disabled'}, limit ${context.inputs.openPullRequestsLimit.toString()}
+- Identity: ${authoritative.toString()} authoritative schema-v2 target(s), ${(context.plan.selected.length - authoritative).toString()} provisional schema-v1 target(s)
 
 ## Selected (${context.plan.selected.length.toString()})
 
@@ -72,7 +74,7 @@ ${table(
         '_No available updates were excluded by the selected ceiling._',
     )}
 
-${diagnostics.length === 0 ? '' : `## Zolt diagnostics\n\n${diagnostics.join('\n')}\n\n`}Write mode remains disabled until Zolt publishes a canonical exact-target mutation contract.
+${diagnostics.length === 0 ? '' : `## Zolt diagnostics\n\n${diagnostics.join('\n')}\n\n`}The exact-update artifact executor and managed-PR reconciliation kernel are implemented, but publication remains disabled until a matching Zolt schema-v2 release and the publication orchestrator are enabled together.
 `;
 }
 

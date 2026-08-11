@@ -33,6 +33,22 @@ test('createRepositoryView reads the exact commit and ignores dirty checkout fil
     assert.match(await readFile(join(view.workspace, 'zolt.toml'), 'utf8'), /committed/u);
     assert.notEqual(view.workspace, root);
     await view.verify();
+
+    const mutable = await view.createMutableCopy();
+    assert.notEqual(mutable.workspace, view.workspace);
+    await writeFile(join(mutable.workspace, 'zolt.toml'), '[project]\nname = "updated"\n', 'utf8');
+    assert.deepEqual(await mutable.inspectChanges(), {
+        added: [],
+        deleted: [],
+        missingDirectories: [],
+        modeChanged: [],
+        modified: ['zolt.toml'],
+        paths: ['zolt.toml'],
+        unexpectedDirectories: [],
+    });
+    await view.verify();
+    await mutable.cleanup();
+
     await writeFile(join(view.workspace, 'zolt.lock'), 'version = 2\n', 'utf8');
     await assert.rejects(view.verify(), /bytes changed during analysis/u);
     await view.cleanup();

@@ -10,6 +10,7 @@ export interface ExecutionContext {
     readonly eventName: 'push' | 'schedule' | 'workflow_dispatch';
     readonly ref: string;
     readonly repository: string;
+    readonly repositoryId: string;
     readonly sha: string;
     readonly workspace: string;
 }
@@ -19,6 +20,7 @@ interface EventPayload {
     readonly repository?: {
         readonly default_branch?: unknown;
         readonly full_name?: unknown;
+        readonly id?: unknown;
     };
 }
 
@@ -55,6 +57,7 @@ export async function readExecutionContext(
     if (payload.repository?.full_name !== repository) {
         throw actionError('ZOLT-EVENT-006', 'The event repository does not match GITHUB_REPOSITORY.');
     }
+    const repositoryId = positiveSafeInteger(payload.repository?.id, 'repository.id');
     const defaultBranch = stringValue(payload.repository?.default_branch, 'repository.default_branch');
     const ref = required(environment.GITHUB_REF, 'GITHUB_REF');
     const expectedRef = `refs/heads/${defaultBranch}`;
@@ -70,6 +73,7 @@ export async function readExecutionContext(
         eventName: eventName as ExecutionContext['eventName'],
         ref,
         repository,
+        repositoryId,
         sha: sha.toLowerCase(),
         workspace: required(environment.GITHUB_WORKSPACE, 'GITHUB_WORKSPACE'),
     };
@@ -96,4 +100,11 @@ function required(value: string | undefined, name: string): string {
 function stringValue(value: unknown, name: string): string {
     if (typeof value !== 'string' || value.trim() === '') throw actionError('ZOLT-EVENT-010', `${name} is missing.`);
     return value;
+}
+
+function positiveSafeInteger(value: unknown, name: string): string {
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+        throw actionError('ZOLT-EVENT-010', `${name} is missing or invalid.`);
+    }
+    return value.toString();
 }
