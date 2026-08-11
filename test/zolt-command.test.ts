@@ -14,12 +14,12 @@ const document = JSON.stringify({
     command: 'outdated',
     diagnostics: [],
     notes: [],
-    schemaVersion: 1,
+    schemaVersion: 2,
     scopes: [],
     status: 'ok',
 });
 
-test('captureOutdated invokes the verified binary with machine flags and selectors', async () => {
+test('captureOutdated selects the pinned schema-v2 contract with machine flags and selectors', async () => {
     let observed: readonly string[] = [];
     const report = await captureOutdated(
         '/verified/zolt',
@@ -42,11 +42,13 @@ test('captureOutdated invokes the verified binary with machine flags and selecto
         'outdated',
         '--format',
         'json',
+        '--schema-version',
+        '2',
         '--include-prereleases',
         'com.example:demo',
         'versions',
     ]);
-    assert.equal(report.schemaVersion, 1);
+    assert.equal(report.schemaVersion, 2);
 });
 
 test('captureOutdated rejects unexpected stderr in machine mode', async () => {
@@ -72,7 +74,7 @@ test('runZolt rejects invalid UTF-8 as a normal promise failure', async () => {
 });
 
 
-test('captureOutdated opts into schema v2 only for a release that declares support', async () => {
+test('captureOutdated accepts an explicit schema-v2 decoder override', async () => {
     let observed: readonly string[] = [];
     const expected = outdatedReportV2();
     const report = await captureOutdated(

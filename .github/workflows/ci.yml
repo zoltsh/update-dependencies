@@ -113,22 +113,10 @@ jobs:
           EXPECTED_ZOLT_TARGET: ${{ matrix.target }}
         run: npm run platform:check && npm run typecheck && npm test && npm run bundle:check
 
-      - name: Verify pinned Zolt release
+      - name: Verify pinned Zolt schema-v2 contract
         env:
           EXPECTED_ZOLT_TARGET: ${{ matrix.target }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { installZolt } from './dist/install/install-zolt.js';
-
-          const target = process.env.EXPECTED_ZOLT_TARGET;
-          if (target === undefined) throw new Error('EXPECTED_ZOLT_TARGET is not set.');
-          const installed = await installZolt(target);
-          try {
-              console.log(`Verified Zolt ${installed.version} for ${installed.target}.`);
-          } finally {
-              await installed.cleanup();
-          }
-          NODE
+        run: npm run pinned-zolt:check
 
   zolt-source-contract:
     name: exact-target source contract

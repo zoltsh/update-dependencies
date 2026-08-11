@@ -5,6 +5,7 @@ const root = resolve(import.meta.dirname, '..');
 const action = await readFile(resolve(root, 'action.yml'), 'utf8');
 const packageJson = JSON.parse(await readFile(resolve(root, 'package.json'), 'utf8'));
 const packageLock = JSON.parse(await readFile(resolve(root, 'package-lock.json'), 'utf8'));
+const releaseMetadata = await readFile(resolve(root, 'src/generated/zolt-release.ts'), 'utf8');
 const sourceContract = await readFile(resolve(root, 'src/generated/zolt-source-contract.ts'), 'utf8');
 
 requireText(action, 'using: node24', 'action.yml must use Node 24.');
@@ -34,6 +35,9 @@ if (packageJson.dependencies !== undefined && Object.keys(packageJson.dependenci
 for (const script of ['preinstall', 'install', 'postinstall', 'prepare']) {
     if (packageJson.scripts?.[script] !== undefined) throw new Error(`Forbidden lifecycle script ${script}.`);
 }
+if (packageJson.scripts?.['pinned-zolt:check'] !== 'node scripts/check-pinned-zolt.mjs') {
+    throw new Error('package.json must expose the pinned Zolt contract check.');
+}
 if (packageLock.name !== packageJson.name || packageLock.version !== packageJson.version) {
     throw new Error('package-lock.json root identity does not match package.json.');
 }
@@ -42,12 +46,35 @@ if (packageLock.lockfileVersion !== 3) throw new Error('package-lock.json must u
 
 const contractCommit = sourceContract.match(/[0-9a-f]{40}/u)?.[0];
 if (contractCommit === undefined) throw new Error('Zolt source-contract commit is missing or malformed.');
+const releaseCommit = releaseMetadata.match(/ZOLT_SOURCE_COMMIT = '([0-9a-f]{40})'/u)?.[1];
+const releaseVersion = releaseMetadata.match(/ZOLT_VERSION = '([^']+)'/u)?.[1];
+if (releaseCommit === undefined || releaseVersion === undefined) {
+    throw new Error('Pinned Zolt release identity is missing or malformed.');
+}
+if (releaseCommit !== contractCommit || !releaseVersion.endsWith(releaseCommit.slice(0, 12))) {
+    throw new Error('Pinned Zolt release identity does not match the reviewed source contract.');
+}
+requireText(
+    releaseMetadata,
+    'ZOLT_OUTDATED_SCHEMA_VERSION: 1 | 2 = 2',
+    'The pinned exact-target release must select outdated schema v2.',
+);
+const releaseTargets = [...releaseMetadata.matchAll(/^\s+'(?:linux|macos)-(?:arm64|x64)': artifact\(/gmu)];
+const releaseDigests = [...releaseMetadata.matchAll(/artifact\('[^']+', '([0-9a-f]{64})'\)/gu)];
+if (releaseTargets.length !== 4 || releaseDigests.length !== 4) {
+    throw new Error('Pinned Zolt release metadata must contain four platform digests.');
+}
 const ciWorkflow = await readFile(resolve(root, '.github/workflows/ci.yml'), 'utf8');
 requireText(ciWorkflow, `ref: ${contractCommit}`, 'CI Zolt checkout does not match the source-contract commit.');
 requireText(
     ciWorkflow,
     `ZOLT_LIVE_SOURCE_COMMIT: ${contractCommit}`,
     'CI live-contract environment does not match the source-contract commit.',
+);
+requireText(
+    ciWorkflow,
+    'run: npm run pinned-zolt:check',
+    'CI does not verify the pinned Zolt schema-v2 contract.',
 );
 
 await access(resolve(root, 'dist/index.js'));

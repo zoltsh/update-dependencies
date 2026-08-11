@@ -6,7 +6,7 @@ import type { InstalledZolt } from '../src/install/install-zolt.js';
 import { runAction } from '../src/main.js';
 import type { ZoltProjectSelection } from '../src/types.js';
 import type { ZoltEnvironment } from '../src/zolt/process.js';
-import { outdatedReport, repositoryView } from './support/fixtures.js';
+import { outdatedReportV2, repositoryView } from './support/fixtures.js';
 import { FakeActionCore } from './support/core.js';
 
 const execution: ExecutionContext = {
@@ -45,7 +45,7 @@ test('runAction produces a deterministic planning summary and output without wri
 
     await runAction({
         architecture: 'x64',
-        capture: async () => outdatedReport(),
+        capture: async () => outdatedReportV2(),
         core,
         createEnvironment: async () => zoltEnvironment,
         createRepository: async () => ({
@@ -63,6 +63,7 @@ test('runAction produces a deterministic planning summary and output without wri
     assert.deepEqual(core.failures, []);
     assert.equal(core.outputs.get('planned-update-count'), 1);
     assert.equal(core.outputs.get('created-pull-request-count'), 0);
+    assert.match(String(core.outputs.get('plan')), /"authoritativeTarget":true/u);
     assert.match(core.summaries[0] ?? '', /Planning preview: no branches or pull requests were written/u);
     assert.equal(verified, true);
     assert.deepEqual(cleanups, ['environment', 'install', 'repository']);

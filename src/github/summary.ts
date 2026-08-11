@@ -74,7 +74,7 @@ ${table(
         '_No available updates were excluded by the selected ceiling._',
     )}
 
-${diagnostics.length === 0 ? '' : `## Zolt diagnostics\n\n${diagnostics.join('\n')}\n\n`}The exact-update executor, managed-PR reconciliation kernel, and dormant publication orchestrator are implemented, but public write mode remains disabled until a matching Zolt schema-v2 release is pinned and live publication canaries pass.
+${diagnostics.length === 0 ? '' : `## Zolt diagnostics\n\n${diagnostics.join('\n')}\n\n`}The pinned Zolt release supplies authoritative schema-v2 targets, and the exact-update executor, reconciliation kernel, and publication orchestrator are implemented. Public write mode remains disabled until live publication canaries pass and the orchestrator is explicitly wired into the Action.
 `;
 }
 

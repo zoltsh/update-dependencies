@@ -48,7 +48,7 @@ export async function runAction(dependencies: ActionDependencies = {}): Promise<
         if (!inputs.dryRun) {
             throw actionError(
                 'ZOLT-WRITE-001',
-                'Write mode remains closed until an immutable Zolt release containing the reviewed exact-target contract is checksum-pinned and the dormant publication orchestrator passes live canaries and is wired into the Action. Set dry-run to true.',
+                'Write mode remains closed while the pinned schema-v2 release and dormant publication orchestrator complete live publication canaries and explicit Action wiring. Set dry-run to true.',
             );
         }
         const target = resolveTarget(

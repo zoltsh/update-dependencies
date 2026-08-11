@@ -13,7 +13,7 @@ export function renderPullRequestPreview(target: PlannedUpdate): PullRequestPrev
     }), 'utf8').toString('base64url');
     const marker = `<!-- zolt-update-dependencies:preview-v2:${markerPayload} -->`;
     const verification = target.authoritativeTarget
-        ? 'Zolt supplied the canonical target identity and manifest/root-lock paths. The isolated exact-update executor and dormant publication orchestrator are available; public write mode remains disabled until a matching pinned Zolt release and live canaries are complete.'
+        ? 'The pinned Zolt schema-v2 release supplied the canonical target identity and manifest/root-lock paths. The isolated exact-update executor and dormant publication orchestrator are available; public write mode remains disabled until live publication canaries and Action wiring are complete.'
         : 'This target came from schema v1. The action will not execute it until the pinned Zolt release supplies canonical schema-v2 identity and paths.';
     return renderPullRequest(target, marker, verification);
 }
