@@ -13,6 +13,7 @@ export async function captureOutdated(binary, inputs, selection, environment, de
     if (inputs.includePrereleases)
         arguments_.push('--include-prereleases');
     arguments_.push(...inputs.selectors);
+    arguments_.push('--cwd', selection.root);
     const result = await runMachineCommand(() => (dependencies.run ?? runZolt)(binary, arguments_, selection.root, environment, 120_000), 'outdated', schemaVersion);
     requireQuietStderr(result.stderr, 'outdated machine document');
     return schemaVersion === 1

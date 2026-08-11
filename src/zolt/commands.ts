@@ -37,6 +37,7 @@ export async function captureOutdated(
     if (schemaVersion === 2) arguments_.push('--schema-version', '2');
     if (inputs.includePrereleases) arguments_.push('--include-prereleases');
     arguments_.push(...inputs.selectors);
+    arguments_.push('--cwd', selection.root);
     const result = await runMachineCommand(
         () => (dependencies.run ?? runZolt)(binary, arguments_, selection.root, environment, 120_000),
         'outdated',

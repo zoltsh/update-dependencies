@@ -21,14 +21,16 @@ const document = JSON.stringify({
 
 test('captureOutdated selects the pinned schema-v2 contract with machine flags and selectors', async () => {
     let observed: readonly string[] = [];
+    let observedCwd = '';
     const report = await captureOutdated(
         '/verified/zolt',
         actionInputs({ includePrereleases: true, selectors: ['com.example:demo', 'versions'] }),
         projectSelection(),
         { PATH: '/usr/bin' },
         {
-            run: async (_binary, arguments_) => {
+            run: async (_binary, arguments_, cwd) => {
                 observed = arguments_;
+                observedCwd = cwd;
                 return { stderr: '', stdout: document };
             },
         },
@@ -47,7 +49,10 @@ test('captureOutdated selects the pinned schema-v2 contract with machine flags a
         '--include-prereleases',
         'com.example:demo',
         'versions',
+        '--cwd',
+        '/private/repository',
     ]);
+    assert.equal(observedCwd, '/private/repository');
     assert.equal(report.schemaVersion, 2);
 });
 
@@ -102,6 +107,8 @@ test('captureOutdated accepts an explicit schema-v2 decoder override', async () 
         'json',
         '--schema-version',
         '2',
+        '--cwd',
+        '/private/repository',
     ]);
     assert.equal(report, expected);
 });

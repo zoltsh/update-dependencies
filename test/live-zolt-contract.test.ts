@@ -37,7 +37,7 @@ live('production capture selects authoritative schema-v2 targets from reviewed Z
     assert.equal(report.schemaVersion, 2);
     const entry = report.scopes.flatMap(({ entries }) => entries)
         .find(({ identifier }) => identifier === 'com.google.guava:guava');
-    assert.ok(entry);
+    assert.ok(entry, `Expected Guava in the production outdated report: ${JSON.stringify(report)}`);
     assert.equal(entry.targetId, createZoltTargetId({
         identifier: 'com.google.guava:guava',
         manifestPath: 'zolt.toml',
