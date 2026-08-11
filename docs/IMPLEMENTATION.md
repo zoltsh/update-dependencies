@@ -63,6 +63,10 @@ The repository now contains the next write-path layer, still unreachable from
   commits, generated refs, and PR create/update/close operations. Refresh
   commits retain the old managed head as a parent and refs update only with
   `force: false`, making concurrent human writes fail safely.
+- A dormant publication orchestrator that reconciles open PRs, preflights branch
+  ownership, prepares every exact artifact before visible writes, rechecks the
+  default and managed heads before publication, and reports completed writes on
+  partial failure.
 
 ## Remaining publication work
 
@@ -74,11 +78,9 @@ The write gate opens only after all of the following land together:
    schema selector to `2`.
 3. Live standalone, workspace, alias, and private-registry canaries pass against
    the real binary.
-4. The publication orchestrator composes the existing GitHub adapter with
-   exact artifacts and reconciliation, including a final default-branch check.
-5. Default-branch advancement, partial API failure, idempotent rerun, refresh,
-   close, and human-modification canaries pass.
-6. `runAction` composes executor, reconciliation, and publication and removes
+4. Default-branch advancement, partial API failure, idempotent rerun, refresh,
+   close, and human-modification live canaries pass.
+5. `runAction` composes executor, reconciliation, and publication and removes
    `ZOLT-WRITE-001`.
 
 ## Later

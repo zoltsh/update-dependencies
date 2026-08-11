@@ -7,8 +7,8 @@ source and runs the downstream contract canary.
 The public Action still pins an older immutable Zolt build that exposes stable
 `zolt outdated --format json` schema v1. Source-contract support and production
 release selection are intentionally separate: write mode stays closed until a
-matching release, four archive checksums, and the publication orchestrator land
-together.
+matching release and four archive checksums land, publication canaries pass,
+and the dormant orchestrator is explicitly wired into the Action.
 
 ## Canonical target inventory
 

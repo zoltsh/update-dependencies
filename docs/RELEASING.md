@@ -46,8 +46,8 @@ artifact.
 - Run a consumer workflow pinned to that full SHA.
 - Confirm the expected Zolt version, schema selector, and deterministic plan.
 - Confirm a repeated run is byte-equivalent.
-- Confirm write mode remains rejected unless that release explicitly enables
-  the reviewed publication orchestrator.
+- Confirm write mode remains rejected unless that release explicitly wires the
+  reviewed publication orchestrator after its live canaries pass.
 - Confirm pull-request events, non-default branches, Windows, malformed machine
   documents, bad archive checksums, missing credentials, unexpected update
   files, marker collisions, and human-modified heads fail closed without

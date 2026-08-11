@@ -158,30 +158,37 @@ branches are ignored rather than allowed to consume managed-PR capacity.
 Blocked local managed PRs count against the concurrent open-PR limit so the
 Action never creates a duplicate to work around an unsafe existing branch.
 
-## Remaining publication slice
+## Dormant publication orchestration
 
-The GitHub API primitives are implemented but dormant. The remaining work is
-the orchestrator that composes them with reconciliation and the exact artifact:
+The GitHub API primitives and their orchestrator are implemented but dormant.
+The orchestrator composes reconciliation and exact artifacts in this order:
 
 ```text
-verified update artifact
+open PR inventory + reconciliation
       |
       v
-recheck default branch + managed branch ownership
+recheck default branch + every managed branch head
       |
       v
-create base-tree blobs/tree/commit
+prepare and verify every exact update artifact
       |
       v
-non-force create/update ref + create/update/close PR
+close obsolete PRs -> refresh owned PRs -> create new PRs
 ```
+
+Every artifact is ready before the first visible write. Immediately before each
+close, ref create/update, or PR create/update, the orchestrator rechecks the
+default-branch SHA and relevant managed branch head. Refreshes retain the prior
+managed head as a commit parent and use only a non-force ref update. If a later
+API operation fails, the raised failure carries an ordered snapshot of every
+completed branch or pull-request write so recovery does not depend on guessing.
 
 The client does not use checkout credentials or `git push`; it accepts only
 GitHub.com, bounds responses, validates response identities, and never offers a
 force-update option. Maven credentials and GitHub write credentials remain in
-separate adapters. The publication gate can
-open only after a real pinned Zolt v2 release and live create/refresh/no-op/
-close/private-registry canaries pass.
+separate adapters. The publication gate can open only after a real pinned Zolt
+v2 release and live create/refresh/no-op/close/private-registry canaries pass,
+then `runAction` explicitly composes this dormant module.
 
 ## Source-contract boundary
 

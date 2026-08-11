@@ -29,8 +29,10 @@
 > The public Action is still **planning-only**. Zolt's schema-v2 exact-target
 > contract is implemented on `zoltsh/zolt` main and exercised by a source-pinned
 > contract canary, but the Action still embeds the older schema-v1 release. GitHub
-> publication remains disabled until a matching immutable release and checksums
-> are pinned. Pin the action to a reviewed full commit SHA.
+> publication orchestration is implemented but unreachable from the public
+> entrypoint. Write mode remains disabled until a matching immutable release and
+> checksums are pinned, live canaries pass, and the orchestrator is wired into the
+> Action. Pin the action to a reviewed full commit SHA.
 
 ## Use
 
@@ -107,6 +109,8 @@ The contract-ready kernel additionally provides:
   overwrites a human-modified branch;
 - a bounded GitHub.com Git-data and pull-request client that creates blobs,
   trees, merge-safe commits, and non-force managed ref updates.
+- a dormant publication orchestrator that prepares every artifact before visible
+  writes, rechecks default and managed branch heads, and journals partial writes.
 
 Those components are process- and adapter-tested but not wired to public write
 mode yet.
