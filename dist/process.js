@@ -38,7 +38,7 @@ export async function execText(command, arguments_, options) {
             stderr.push(value);
         });
         child.once('error', (error) => finish(actionError('ZOLT-PROCESS-001', `Could not start ${options.label}.`, error)));
-        child.once('exit', (code, signal) => {
+        child.once('close', (code, signal) => {
             let output;
             try {
                 output = {
