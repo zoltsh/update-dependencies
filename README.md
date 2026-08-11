@@ -1,35 +1,17 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/zoltsh/zolt/main/logo.svg" alt="zolt" width="720">
+  <img src="https://raw.githubusercontent.com/zoltsh/zolt/main/logo.svg" alt="zolt" width="560">
 </p>
 
-<h3 align="center">Plan Zolt dependency updates safely</h3>
+<h3 align="center">Keep Zolt dependencies current</h3>
 
 <p align="center">
-  Deterministic update plans from the exact Git commit, powered by a verified Zolt release.
+  One verified pull request per dependency update, with workspace and version-alias support.
 </p>
-
-<p align="center">
-  <a href="#use">Use</a>
-  <span> · </span>
-  <a href="#inputs">Inputs</a>
-  <span> · </span>
-  <a href="./SECURITY.md">Security</a>
-  <span> · </span>
-  <a href="#development">Development</a>
-</p>
-
-<br />
-
-> [!IMPORTANT]
-> Pin this action to a reviewed full commit SHA. This release creates update
-> plans; it does not change files or open pull requests.
 
 ## Use
 
-Run the action on a schedule or with `workflow_dispatch`:
-
 ```yaml
-name: Plan Zolt dependency updates
+name: Update dependencies
 
 on:
   schedule:
@@ -37,10 +19,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
-  plan:
+  update:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@<full-commit-sha>
@@ -49,80 +32,47 @@ jobs:
 
       - uses: zoltsh/update-dependencies@<full-commit-sha>
         with:
+          dry-run: false
           update-ceiling: minor
           open-pull-requests-limit: 5
 ```
 
-The job summary shows which updates are selected, deferred, blocked, or outside
-policy. The `plan` output contains the same result as deterministic JSON.
+Pin both actions to reviewed full commit SHAs. The default `dry-run: true`
+produces the same plan and job summary without writing to GitHub.
 
-## What it does
+## Behavior
 
-- Reads tracked project files from the exact triggering commit, ignoring dirty
-  checkout files.
-- Downloads and verifies a checksum-pinned Zolt release.
-- Finds available updates for standalone projects and workspaces.
-- Applies the configured version ceiling, prerelease policy, selectors, and
-  update limit.
-- Produces stable target identities, counts, pull-request previews, and JSON
-  output for review or downstream automation.
+The action runs a checksum-pinned Zolt release against the exact triggering
+commit. Each selected update is applied in isolation, checked for unexpected
+files, and verified with a locked offline resolve before its branch is
+published. Repeated runs refresh owned pull requests, close updates that are no
+longer needed, and leave human-modified branches alone.
 
-The action fails closed on unsupported events, non-default-branch runs, malformed
-Zolt output, unexpected repository state, and unapproved credential channels.
-It supports GitHub.com on Linux and macOS; Windows and GitHub Enterprise Server
-are not supported.
+It supports standalone projects, modern and legacy workspaces, shared version
+aliases, and explicitly allowlisted private-repository credentials on GitHub.com
+Linux and macOS runners.
 
 ## Inputs
 
-| Input | Default | Meaning |
+| Input | Default | Purpose |
 | :--- | :---: | :--- |
-| `directory` | `.` | Project directory, or a directory inside the workspace |
-| `workspace` | `auto` | Workspace discovery: `auto`, `true`, or `false` |
-| `update-ceiling` | `minor` | Largest allowed update: `patch`, `minor`, or `major` |
-| `include-prereleases` | `false` | Include prerelease versions |
+| `directory` | `.` | Project or workspace directory |
+| `workspace` | `auto` | `auto`, `true`, or `false` |
+| `update-ceiling` | `minor` | `patch`, `minor`, or `major` |
+| `include-prereleases` | `false` | Allow prerelease targets |
 | `selectors` | — | Coordinates, aliases, sections, or members, one per line |
-| `open-pull-requests-limit` | `5` | Maximum updates selected in one run |
-| `registry-env` | — | Repository credential variable names, one per line |
-| `dry-run` | `true` | Planning mode; `true` is the supported value |
+| `open-pull-requests-limit` | `5` | Maximum concurrent managed update PRs |
+| `registry-env` | — | Credential environment variable names passed to Zolt |
+| `dry-run` | `true` | Plan without creating or reconciling PRs |
 
-`workspace: auto` supports modern workspaces declared in `zolt.toml`, legacy
-`zolt-workspace.toml` workspaces, and standalone projects.
-
-For private Maven repositories, pass only the credential variables Zolt needs:
-
-```yaml
-- uses: zoltsh/update-dependencies@<full-commit-sha>
-  env:
-    MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
-    MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-  with:
-    registry-env: |
-      MAVEN_USERNAME
-      MAVEN_PASSWORD
-```
-
-Selected credentials are masked, redacted, and never mixed with the GitHub
-token.
-
-## Read more
-
-- [Architecture](./docs/ARCHITECTURE.md)
-- [Security](./SECURITY.md)
-- [Zolt contract](./docs/ZOLT_CONTRACT.md)
-- [Canary guide](./docs/CANARY.md)
-- [Release guide](./docs/RELEASING.md)
+See [Security](./SECURITY.md), [Architecture](./docs/ARCHITECTURE.md), and
+[Releasing](./docs/RELEASING.md) for the trust model and maintenance details.
 
 ## Development
-
-Use Node 24 or newer:
 
 ```sh
 npm ci
 scripts/check
 ```
 
-The repository commits the complete `dist/` runtime used by GitHub Actions.
-
-## License
-
-MIT. See [LICENSE](./LICENSE).
+Requires Node 24 or newer. MIT licensed.
