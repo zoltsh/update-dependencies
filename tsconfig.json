@@ -6,6 +6,7 @@
     "esModuleInterop": false,
     "exactOptionalPropertyTypes": true,
     "forceConsistentCasingInFileNames": true,
+    "ignoreDeprecations": "6.0",
     "lib": [
       "ES2023",
       "DOM",
