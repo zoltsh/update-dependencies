@@ -7,12 +7,15 @@ publish an npm package.
 
 1. Set `ACTION_VERSION` in `src/constants.ts` to the immutable version tag
    without the leading `v`.
-2. Update `src/generated/zolt-release.ts` with one published Zolt version, its
-   source commit, four archive checksums, and the exact outdated schema version
-   that release supports.
+2. Confirm the reviewed source contract in
+   `src/generated/zolt-source-contract.ts` passes CI, then update
+   `src/generated/zolt-release.ts` with one immutable published Zolt version,
+   its source commit, four archive checksums, and the exact outdated schema
+   version that release supports.
 3. Run `npm ci`, `npm audit`, `npm run bundle`, and `scripts/check` under Node 24.
 4. Run `actionlint` against every workflow.
-5. Confirm the supported runner matrix and Windows rejection tests pass.
+5. Confirm the reviewed-source exact-target canary, supported runner matrix,
+   and Windows rejection tests pass.
 6. Run planning canaries for standalone, modern/legacy workspace, alias fan-out,
    and private repositories.
 7. When schema v2 is selected, run real exact-update artifact canaries plus the

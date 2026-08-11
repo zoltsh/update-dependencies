@@ -15,6 +15,7 @@ The public entrypoint currently implements the safe planning half of
 - Modern, legacy, and standalone project selection.
 - Private Maven credential allowlisting and GitHub-token isolation.
 - Strict stable `zolt outdated --format json` schema-v1 decoding.
+- Source-pinned schema-v2 and exact-target canaries against reviewed Zolt main.
 - Patch, minor, and major policy selection.
 - Workspace member manifest mapping, alias fan-out, and member attribution.
 - Stable provisional target, branch, title, marker, and body generation.
@@ -31,10 +32,11 @@ switch machine contracts.
 The repository now contains the next write-path layer, still unreachable from
 `runAction`:
 
-- A strict outdated schema-v2 decoder with canonical `zt1_` target IDs,
-  mutation-root-relative manifest/root-lock paths, and updateability blockers.
+- A strict outdated schema-v2 decoder that recomputes canonical `zt1_` target
+  IDs from manifest/surface/section/identifier identity, validates Unicode NFC,
+  mutation-root-relative paths, surface mutability, and updateability blockers.
 - A strict exact-update schema-v2 decoder covering applied, dry-run, no-resolve,
-  and same-version no-op effects.
+  and same-version no-op effects, plus selected-schema failure envelopes.
 - Repository-relative path primitives shared by contracts, planning, markers,
   and execution.
 - A retained exact-commit archive that can produce a fresh mutable extraction
@@ -45,6 +47,9 @@ The repository now contains the next write-path layer, still unreachable from
 - An exact-update executor that validates target identity, destination,
   fan-out, result paths, observed changes, locked/offline verification, and
   immutable-view integrity before returning manifest/lock bytes.
+- A reviewed-source canary pinned to Zolt commit
+  `ae6532ef804c6347c6b1e72742216b9443c6c288`, covering standalone, workspace,
+  retained-empty workspace, exact mutation, target vectors, and JSON failures.
 - Process-boundary tests using a real fake executable for standalone and
   workspace updates, unexpected writes, false reports, mode changes,
   verification rewrites, and provisional-target rejection.
@@ -63,7 +68,8 @@ The repository now contains the next write-path layer, still unreachable from
 
 The write gate opens only after all of the following land together:
 
-1. A published Zolt build implements the final schema-v2 contract.
+1. An immutable Zolt release containing the reviewed schema-v2 contract (or a
+   reviewed descendant) is published.
 2. The Action pins that build and its four checksums and flips the generated
    schema selector to `2`.
 3. Live standalone, workspace, alias, and private-registry canaries pass against

@@ -27,9 +27,11 @@ trusted event + exact GITHUB_SHA
        publication gate (closed)
 ```
 
-The pinned Zolt release currently declares outdated schema v1. Moving the
-release metadata switch to v2 requires a published Zolt build implementing the
-contract in [`ZOLT_CONTRACT.md`](./ZOLT_CONTRACT.md).
+The pinned Zolt release currently declares outdated schema v1. Separately, CI
+builds reviewed Zolt source commit
+`ae6532ef804c6347c6b1e72742216b9443c6c288` and exercises the real schema-v2
+contract. Moving the production selector to v2 remains coupled to pinning a
+matching immutable binary and all four checksums.
 
 ## Contract-ready execution path
 
@@ -180,6 +182,16 @@ force-update option. Maven credentials and GitHub write credentials remain in
 separate adapters. The publication gate can
 open only after a real pinned Zolt v2 release and live create/refresh/no-op/
 close/private-registry canaries pass.
+
+## Source-contract boundary
+
+Schema-v2 target IDs are verified cryptographically from their canonical
+identity fields; a syntactically valid but mismatched `zt1_` value is rejected.
+JSON-mode nonzero exits retain stdout/stderr in a private process error, then the
+command adapter strictly decodes the selected-schema failure envelope. The
+planner also derives locked-verification mode from authoritative v2 scope shape,
+correcting an Action-side lexical workspace misclassification for Zolt's
+retained empty workspace domain.
 
 ## Compatibility
 

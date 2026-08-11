@@ -23,9 +23,20 @@ Require correct Zolt version/checksum, paths, update ordering, alias fan-out,
 deferral, blockers, redaction, and byte-identical repeated plans. Require
 `dry-run: false` to fail before branch or pull-request operations.
 
+## Source-contract canary
+
+CI checks out reviewed Zolt source commit
+`ae6532ef804c6347c6b1e72742216b9443c6c288`, packages its CLI, and runs the
+Action decoders against real schema-v2 standalone, workspace, retained-empty,
+exact no-resolve, target-ID, and selected-schema failure behavior. The workflow
+ref and generated source-contract constant are checked for equality.
+
+This proves source compatibility; it does not substitute for archive checksums
+or authorize production release selection.
+
 ## Contract-ready executor canary
 
-After a published Zolt release declares schema v2, run the executor before
+After an immutable Zolt release declares schema v2, run the executor before
 enabling publication:
 
 - exact standalone dependency;

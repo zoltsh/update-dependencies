@@ -26,11 +26,11 @@
 <br />
 
 > [!IMPORTANT]
-> The public Action is still **planning-only**. This second implementation batch
-> includes a schema-v2 exact-update executor and managed-PR reconciliation
-> kernel, but the pinned Zolt release still speaks schema v1 and GitHub
-> publication remains deliberately disabled. Pin the action to a reviewed full
-> commit SHA.
+> The public Action is still **planning-only**. Zolt's schema-v2 exact-target
+> contract is implemented on `zoltsh/zolt` main and exercised by a source-pinned
+> contract canary, but the Action still embeds the older schema-v1 release. GitHub
+> publication remains disabled until a matching immutable release and checksums
+> are pinned. Pin the action to a reviewed full commit SHA.
 
 ## Use
 
@@ -86,18 +86,20 @@ The public entrypoint performs the complete read and planning path:
 4. Give Zolt a minimal environment plus only credential variables explicitly
    named by `registry-env`.
 5. Decode the machine-readable outdated schema declared beside the pinned Zolt
-   release. The current release declares schema v1; schema v2 is already
-   implemented but cannot be selected until a matching Zolt build is pinned.
+   release. The current release declares schema v1. Schema v2 is implemented in
+   Zolt source and continuously checked at its reviewed commit, but production
+   selection waits for matching immutable release metadata and checksums.
 6. Apply update policy and deterministic ordering while preserving alias fan-out.
 7. Render target identities, branch names, PR previews, outputs, and summaries.
 8. Reject publication before any checkout mutation or GitHub branch call.
 
 The contract-ready kernel additionally provides:
 
-- strict schema-v2 `zt1_` target and canonical path decoding;
+- strict schema-v2 target decoding that recomputes every `zt1_` ID from Zolt's
+  canonical identity fields;
 - repository-scoped `zud1_` managed identities;
 - one fresh exact-commit extraction per update target;
-- exact-target invocation and strict result validation;
+- exact-target invocation, selected-schema failure decoding, and strict result validation;
 - actual changed-file and artifact-byte verification;
 - post-update `resolve --locked --offline` verification;
 - strict managed markers with destination, base, and managed-head identity;
@@ -196,7 +198,7 @@ supported.
 | :--- | :--- |
 | [Architecture](./docs/ARCHITECTURE.md) | Understand modules, boundaries, and the write-path gate |
 | [Security](./SECURITY.md) | Review trust assumptions, credentials, and failure behavior |
-| [Zolt contract](./docs/ZOLT_CONTRACT.md) | Implement the exact-target contract that unlocks write mode |
+| [Zolt contract](./docs/ZOLT_CONTRACT.md) | Review the implemented exact-target contract and release gate |
 | [Canary guide](./docs/CANARY.md) | Exercise planning against standalone and workspace fixtures |
 | [Release guide](./docs/RELEASING.md) | Publish a reviewed JavaScript Action release |
 
@@ -212,8 +214,10 @@ scripts/check
 `check` verifies types, repository style and security rules, all tests, the
 committed runtime tree, and Action metadata. The suite includes fake-Zolt
 process-boundary tests for exact standalone/workspace updates and pure managed
-PR reconciliation tests. CI additionally runs `actionlint`,
-`npm audit`, dependency review, and the supported runner matrix.
+PR reconciliation tests. CI additionally builds the reviewed `zoltsh/zolt`
+source commit and runs standalone, workspace, retained-empty, and failure-envelope
+contract canaries, plus `actionlint`, `npm audit`, dependency review, and the
+supported runner matrix.
 
 The committed `dist/` directory is the Action runtime. This batch has no runtime
 npm dependencies: TypeScript compiles the source into an ESM module tree that

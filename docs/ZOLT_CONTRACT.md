@@ -1,16 +1,18 @@
 # Zolt automation contract
 
-The Action currently pins a Zolt build that exposes the stable
-`zolt outdated --format json` schema v1. Pull-request writes require the final
-schema-v2 and exact-target contract implemented in `zoltsh/zolt`.
+Zolt's schema-v2 exact-target contract is implemented on `zoltsh/zolt` main at
+source commit `ae6532ef804c6347c6b1e72742216b9443c6c288`. CI builds that exact
+source and runs the downstream contract canary.
 
-The complete implementation design lives in Zolt's exact-target design record.
-This document states the downstream fields and invariants the Action already
-implements.
+The public Action still pins an older immutable Zolt build that exposes stable
+`zolt outdated --format json` schema v1. Source-contract support and production
+release selection are intentionally separate: write mode stays closed until a
+matching release, four archive checksums, and the publication orchestrator land
+together.
 
 ## Canonical target inventory
 
-The Action will invoke:
+The schema-v2 Action path invokes:
 
 ```console
 zolt outdated --format json --schema-version 2
@@ -58,8 +60,11 @@ Every entry retains the schema-v1 fields and adds:
 }
 ```
 
-`targetId` is opaque, deterministic, independent of current/candidate versions,
-and scoped to one mutation root. A coordinate alone is not sufficient: it may
+`targetId` is deterministic, independent of current/candidate versions, and
+scoped to one mutation root. The Action does not merely validate its syntax: it
+recomputes the ID from SHA-256 over the domain `zolt-update-target\0`, version
+byte `1`, and four big-endian-length-prefixed UTF-8 fields: canonical manifest
+path, surface JSON name, section, and identifier. A coordinate alone is not sufficient: it may
 occur in several sections or members, be governed by an alias, or represent a
 platform rather than a normal dependency.
 
@@ -68,7 +73,7 @@ null blocker.
 
 ## Exact mutation
 
-The Action invokes one target and one caller-selected destination:
+The exact-update executor invokes one target and one caller-selected destination:
 
 ```console
 zolt update \
@@ -128,6 +133,30 @@ A normal applied result is:
 manifest-then-lock order. It is empty for dry-run and no-op. The Action maps
 those paths into the repository root and independently requires the observed
 filesystem changes to match exactly.
+
+## Machine failures
+
+JSON-mode failures use the requested schema version on standard output and keep
+standard error empty:
+
+```json
+{
+  "schemaVersion": 2,
+  "command": "update",
+  "status": "failed",
+  "diagnostics": [
+    {
+      "severity": "error",
+      "message": "Unknown Zolt update target.",
+      "nextStep": "Run zolt outdated again."
+    }
+  ]
+}
+```
+
+The Action strictly decodes this envelope and surfaces the bounded diagnostic
+rather than logging raw machine JSON. Wrong commands, schemas, fields,
+severities, empty diagnostics, or non-empty standard error fail closed.
 
 ## Action-side managed identity
 
