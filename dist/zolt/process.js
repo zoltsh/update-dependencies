@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { MAX_MACHINE_OUTPUT_BYTES, ZOLT_COMMAND_TIMEOUT_MS } from '../constants.js';
-import { actionError } from '../errors.js';
+import { actionError, UpdateDependenciesError } from '../errors.js';
 const BASELINE_ENVIRONMENT = [
     'HTTP_PROXY',
     'HTTPS_PROXY',
@@ -29,6 +29,20 @@ const DENIED_CREDENTIAL_NAMES = new Set([
     'INPUT_GITHUB-TOKEN',
     'INPUT_GITHUB_TOKEN',
 ]);
+export class ZoltCommandFailure extends UpdateDependenciesError {
+    exitCode;
+    signal;
+    stderr;
+    stdout;
+    constructor(message, result, exitCode, signal) {
+        super('ZOLT-COMMAND-002', message);
+        this.name = 'ZoltCommandFailure';
+        this.exitCode = exitCode;
+        this.signal = signal;
+        this.stderr = result.stderr;
+        this.stdout = result.stdout;
+    }
+}
 export async function createZoltEnvironment(source, selectedNames, githubToken, registerSecret) {
     const temporaryBase = source.RUNNER_TEMP ?? tmpdir();
     await mkdir(temporaryBase, { mode: 0o700, recursive: true });
@@ -135,7 +149,7 @@ export async function runZolt(binary, arguments_, cwd, environment, timeout = ZO
                 return;
             }
             const detail = output.stderr.trim() || output.stdout.trim();
-            finish(actionError('ZOLT-COMMAND-002', detail === '' ? `Zolt exited with ${code?.toString() ?? signal ?? 'an unknown status'}.` : detail));
+            finish(new ZoltCommandFailure(detail === '' ? `Zolt exited with ${code?.toString() ?? signal ?? 'an unknown status'}.` : detail, output, code, signal));
         });
         function finish(error, result) {
             if (settled)

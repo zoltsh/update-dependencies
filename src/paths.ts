@@ -1,6 +1,7 @@
 import { isAbsolute, posix, relative, resolve, sep } from 'node:path';
 
 import { actionError } from './errors.js';
+import { canonicalTargetPath } from './zolt/target-id.js';
 
 const CONTROL = /[\u0000-\u001F\u007F]/u;
 
@@ -25,7 +26,7 @@ export function canonicalRelativeFile(value: string, label: string): string {
 }
 
 export function canonicalZoltManifestPath(value: string, label: string): string {
-    const path = canonicalRelativeFile(value, label);
+    const path = canonicalRelativeFile(canonicalTargetPath(value, label), label);
     if (posix.basename(path) !== 'zolt.toml') {
         throw actionError('ZOLT-PATH-003', `${label} must identify a zolt.toml manifest.`);
     }
@@ -33,7 +34,7 @@ export function canonicalZoltManifestPath(value: string, label: string): string 
 }
 
 export function canonicalZoltRootLockPath(value: string, label: string): string {
-    const path = canonicalRelativeFile(value, label);
+    const path = canonicalRelativeFile(canonicalTargetPath(value, label), label);
     if (path !== 'zolt.lock') {
         throw actionError('ZOLT-PATH-003', `${label} must identify the mutation root zolt.lock.`);
     }

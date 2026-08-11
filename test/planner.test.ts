@@ -12,7 +12,7 @@ import {
     outdatedScopeV2,
     projectSelection,
     testTargetId,
-    TEST_TARGET_ID,
+    targetIdFor,
 } from './support/fixtures.js';
 
 test('planUpdates preserves schema-v1 preview planning and classifies blocked surfaces', () => {
@@ -72,7 +72,7 @@ test('planUpdates maps schema-v1 workspace labels and keeps alias fan-out togeth
 test('planUpdates consumes authoritative schema-v2 paths, IDs, and applicability', () => {
     const blockedTarget = testTargetId(2);
     const report = outdatedReportV2([outdatedScopeV2('apps/api', [
-        outdatedEntryV2({ members: ['apps/api'] }),
+        outdatedEntryV2({ members: ['apps/api'] }, 'apps/api/zolt.toml'),
         outdatedEntryV2({
             identifier: 'org.example:generator',
             surface: 'openapiTool',
@@ -90,7 +90,7 @@ test('planUpdates consumes authoritative schema-v2 paths, IDs, and applicability
     });
 
     const plan = planUpdates(report, selection, actionInputs());
-    assert.equal(plan.selected[0]?.targetId, TEST_TARGET_ID);
+    assert.equal(plan.selected[0]?.targetId, targetIdFor({ manifestPath: 'apps/api/zolt.toml' }));
     assert.equal(plan.selected[0]?.managedId.startsWith('zud1_'), true);
     assert.equal(plan.selected[0]?.authoritativeTarget, true);
     assert.equal(plan.selected[0]?.manifestPath, 'platform/apps/api/zolt.toml');
@@ -124,4 +124,21 @@ test('planUpdates rejects unsafe schema-v1 labels and inconsistent v2 root locks
         ),
         /Standalone Zolt reported manifest/u,
     );
+});
+
+test('schema-v2 report shape corrects retained-empty workspace discovery for verification', () => {
+    const misclassifiedStandalone = projectSelection({ mode: 'workspace' });
+    const standalone = planUpdates(
+        outdatedReportV2([outdatedScopeV2('standalone')]),
+        misclassifiedStandalone,
+        actionInputs(),
+    );
+    assert.equal(standalone.selected[0]?.zoltMode, 'project');
+
+    const rootMember = planUpdates(
+        outdatedReportV2([outdatedScopeV2('.')]),
+        misclassifiedStandalone,
+        actionInputs(),
+    );
+    assert.equal(rootMember.selected[0]?.zoltMode, 'workspace');
 });

@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import { decodeOutdatedReportV2 } from '../src/zolt/contracts-v2.js';
 import { decodeExactUpdateResult } from '../src/zolt/exact-contract.js';
-import { TEST_TARGET_ID } from './support/fixtures.js';
+import { targetIdFor } from './support/fixtures.js';
+
+const TEST_TARGET_ID = targetIdFor({ manifestPath: 'apps/api/zolt.toml' });
 
 function outdatedDocument(): Record<string, unknown> {
     return {
@@ -94,7 +96,7 @@ test('decodeOutdatedReportV2 rejects malformed identities, paths, and applicabil
     const unsafeScope = unsafeScopes[0];
     assert.ok(unsafeScope);
     unsafeScope.manifestPath = '../zolt.toml';
-    assert.throws(() => decodeOutdatedReportV2(JSON.stringify(unsafe)), /canonical repository-relative POSIX/u);
+    assert.throws(() => decodeOutdatedReportV2(JSON.stringify(unsafe)), /relative POSIX path|normalized|canonical repository-relative POSIX/u);
 
     const wrongManifest = outdatedDocument();
     const wrongManifestScopes = wrongManifest.scopes as Array<Record<string, unknown>>;
@@ -115,7 +117,7 @@ test('decodeOutdatedReportV2 rejects malformed identities, paths, and applicabil
     const trailingSlashScope = trailingSlashScopes[0];
     assert.ok(trailingSlashScope);
     trailingSlashScope.manifestPath = 'apps/api/zolt.toml/';
-    assert.throws(() => decodeOutdatedReportV2(JSON.stringify(trailingSlash)), /canonical repository-relative POSIX/u);
+    assert.throws(() => decodeOutdatedReportV2(JSON.stringify(trailingSlash)), /relative POSIX path|normalized|canonical repository-relative POSIX/u);
 
     const inconsistent = outdatedDocument();
     const inconsistentScopes = inconsistent.scopes as Array<{ entries: Array<Record<string, unknown>> }>;
@@ -123,6 +125,82 @@ test('decodeOutdatedReportV2 rejects malformed identities, paths, and applicabil
     assert.ok(inconsistentEntry);
     inconsistentEntry.updateable = false;
     assert.throws(() => decodeOutdatedReportV2(JSON.stringify(inconsistent)), /must explain/u);
+});
+
+
+
+test('schema-v2 decoders bind target IDs to identity fields and mutable surfaces', () => {
+    const mismatched = outdatedDocument();
+    const mismatchedScopes = mismatched.scopes as Array<{ entries: Array<Record<string, unknown>> }>;
+    const mismatchedEntry = mismatchedScopes[0]?.entries[0];
+    assert.ok(mismatchedEntry);
+    mismatchedEntry.targetId = targetIdFor({
+        identifier: 'com.example:other',
+        manifestPath: 'apps/api/zolt.toml',
+    });
+    assert.throws(
+        () => decodeOutdatedReportV2(JSON.stringify(mismatched)),
+        /does not match its canonical Zolt target identity fields/u,
+    );
+
+    const unsupported = outdatedDocument();
+    const unsupportedScopes = unsupported.scopes as Array<{ entries: Array<Record<string, unknown>> }>;
+    const unsupportedEntry = unsupportedScopes[0]?.entries[0];
+    assert.ok(unsupportedEntry);
+    unsupportedEntry.surface = 'openapiTool';
+    unsupportedEntry.targetId = targetIdFor({
+        identifier: 'com.example:demo',
+        manifestPath: 'apps/api/zolt.toml',
+        surface: 'openapiTool',
+    });
+    assert.throws(
+        () => decodeOutdatedReportV2(JSON.stringify(unsupported)),
+        /updateable does not match the mutability/u,
+    );
+
+    const exactMismatch = exactDocument();
+    const exactTarget = exactMismatch.target as Record<string, unknown>;
+    exactTarget.targetId = targetIdFor({
+        identifier: 'com.example:other',
+        manifestPath: 'apps/api/zolt.toml',
+    });
+    assert.throws(
+        () => decodeExactUpdateResult(JSON.stringify(exactMismatch)),
+        /does not match its canonical Zolt target identity fields/u,
+    );
+
+    const exactUnsupported = exactDocument();
+    const unsupportedTarget = exactUnsupported.target as Record<string, unknown>;
+    unsupportedTarget.surface = 'openapiTool';
+    unsupportedTarget.targetId = targetIdFor({
+        identifier: 'com.example:demo',
+        manifestPath: 'apps/api/zolt.toml',
+        surface: 'openapiTool',
+    });
+    assert.throws(
+        () => decodeExactUpdateResult(JSON.stringify(exactUnsupported)),
+        /not mutable/u,
+    );
+});
+
+test('schema-v2 identity fields require canonical Unicode NFC text', () => {
+    const decomposed = outdatedDocument();
+    const scopes = decomposed.scopes as Array<Record<string, unknown>>;
+    const scope = scopes[0];
+    assert.ok(scope);
+    scope.manifestPath = 'apps/cafe\u0301/zolt.toml';
+    assert.throws(
+        () => decodeOutdatedReportV2(JSON.stringify(decomposed)),
+        /canonical Unicode NFC text/u,
+    );
+
+    const invalidUnicode = exactDocument();
+    const target = invalidUnicode.target as Record<string, unknown>;
+    target.identifier = '\uD800';
+    assert.throws(
+        () => decodeExactUpdateResult(JSON.stringify(invalidUnicode)),
+        /canonical Unicode NFC text/u,
+    );
 });
 
 test('decodeOutdatedReportV2 rejects duplicate manifest scopes and target identities', () => {

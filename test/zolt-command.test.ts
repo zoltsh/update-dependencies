@@ -2,7 +2,7 @@ import * as assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { captureOutdated, runExactUpdate, verifyLockedOffline } from '../src/zolt/commands.js';
-import { runZolt } from '../src/zolt/process.js';
+import { runZolt, ZoltCommandFailure } from '../src/zolt/process.js';
 import {
     actionInputs,
     outdatedReportV2,
@@ -174,4 +174,74 @@ test('verifyLockedOffline adds workspace routing without another metadata operat
         ['--color', 'never', '--progress', 'never', 'resolve', '--locked', '--offline'],
         ['--color', 'never', '--progress', 'never', 'resolve', '--workspace', '--locked', '--offline'],
     ]);
+});
+
+test('machine commands surface structured selected-schema failures', async () => {
+    const stdout = JSON.stringify({
+        command: 'update',
+        diagnostics: [{
+            message: 'Unknown Zolt update target.',
+            nextStep: 'Run zolt outdated --format json --schema-version 2 again.',
+            severity: 'error',
+        }],
+        schemaVersion: 2,
+        status: 'failed',
+    });
+    await assert.rejects(
+        runExactUpdate('/verified/zolt', '/private/repository', {}, {
+            includePrereleases: false,
+            targetId: TEST_TARGET_ID,
+            toVersion: '1.1.0',
+        }, {
+            run: async () => {
+                throw new ZoltCommandFailure(stdout, { stderr: '', stdout }, 1, null);
+            },
+        }),
+        /Zolt update failed: Unknown Zolt update target\. Next: Run zolt outdated/u,
+    );
+});
+
+test('machine commands reject malformed or noisy failure envelopes', async () => {
+    await assert.rejects(
+        captureOutdated('/verified/zolt', actionInputs(), projectSelection(), {}, {
+            run: async () => {
+                throw new ZoltCommandFailure('{}', { stderr: '', stdout: '{}' }, 1, null);
+            },
+        }),
+        /unknown or missing fields/u,
+    );
+    const stdout = JSON.stringify({
+        command: 'outdated',
+        diagnostics: [{ message: 'failed', nextStep: null, severity: 'error' }],
+        schemaVersion: 1,
+        status: 'failed',
+    });
+    await assert.rejects(
+        captureOutdated('/verified/zolt', actionInputs(), projectSelection(), {}, {
+            run: async () => {
+                throw new ZoltCommandFailure('failed', { stderr: 'unexpected\n', stdout }, 1, null);
+            },
+        }),
+        /unexpected diagnostic output/u,
+    );
+});
+
+test('runZolt preserves bounded stdout and stderr on nonzero exit', async () => {
+    const stdout = '{"status":"failed"}';
+    await assert.rejects(
+        runZolt(
+            process.execPath,
+            ['-e', `process.stdout.write(${JSON.stringify(stdout)}); process.exit(3)`],
+            process.cwd(),
+            process.env,
+            10_000,
+        ),
+        (error: unknown) => {
+            assert.ok(error instanceof ZoltCommandFailure);
+            assert.equal(error.exitCode, 3);
+            assert.equal(error.stdout, stdout);
+            assert.equal(error.stderr, '');
+            return true;
+        },
+    );
 });

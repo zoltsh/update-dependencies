@@ -1,4 +1,4 @@
-import { UpdateDependenciesError } from '../errors.js';
+import { actionError, UpdateDependenciesError } from '../errors.js';
 import { ZOLT_OUTDATED_SCHEMA_VERSION } from '../generated/zolt-release.js';
 import type { ActionInputs } from '../inputs.js';
 import type {
@@ -10,7 +10,8 @@ import type {
 import { decodeOutdatedReport } from './contracts.js';
 import { decodeOutdatedReportV2 } from './contracts-v2.js';
 import { decodeExactUpdateResult } from './exact-contract.js';
-import { runZolt } from './process.js';
+import { decodeMachineFailure, machineFailureMessage } from './failure-contract.js';
+import { runZolt, ZoltCommandFailure, type ProcessResult } from './process.js';
 
 export interface CaptureDependencies {
     readonly decodeV1?: typeof decodeOutdatedReport;
@@ -36,7 +37,11 @@ export async function captureOutdated(
     if (schemaVersion === 2) arguments_.push('--schema-version', '2');
     if (inputs.includePrereleases) arguments_.push('--include-prereleases');
     arguments_.push(...inputs.selectors);
-    const result = await (dependencies.run ?? runZolt)(binary, arguments_, selection.root, environment, 120_000);
+    const result = await runMachineCommand(
+        () => (dependencies.run ?? runZolt)(binary, arguments_, selection.root, environment, 120_000),
+        'outdated',
+        schemaVersion,
+    );
     requireQuietStderr(result.stderr, 'outdated machine document');
     return schemaVersion === 1
         ? (dependencies.decodeV1 ?? decodeOutdatedReport)(result.stdout)
@@ -70,7 +75,11 @@ export async function runExactUpdate(
         '2',
     ];
     if (request.includePrereleases) arguments_.push('--include-prereleases');
-    const result = await (dependencies.run ?? runZolt)(binary, arguments_, cwd, environment, 120_000);
+    const result = await runMachineCommand(
+        () => (dependencies.run ?? runZolt)(binary, arguments_, cwd, environment, 120_000),
+        'update',
+        2,
+    );
     requireQuietStderr(result.stderr, 'exact-update machine document');
     return (dependencies.decode ?? decodeExactUpdateResult)(result.stdout);
 }
@@ -94,6 +103,25 @@ function requireQuietStderr(stderr: string, label: string): void {
         throw new UpdateDependenciesError(
             'ZOLT-PROCESS-002',
             `Zolt wrote unexpected diagnostic output while producing its ${label}.`,
+        );
+    }
+}
+
+async function runMachineCommand(
+    operation: () => Promise<ProcessResult>,
+    command: 'outdated' | 'update',
+    schemaVersion: 1 | 2,
+): Promise<ProcessResult> {
+    try {
+        return await operation();
+    } catch (error) {
+        if (!(error instanceof ZoltCommandFailure)) throw error;
+        requireQuietStderr(error.stderr, `${command} failure machine document`);
+        const failure = decodeMachineFailure(error.stdout, command, schemaVersion);
+        throw actionError(
+            'ZOLT-COMMAND-007',
+            `Zolt ${command} failed: ${machineFailureMessage(failure)}`,
+            error,
         );
     }
 }

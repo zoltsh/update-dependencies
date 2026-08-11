@@ -145,6 +145,7 @@ export interface PlannedUpdate {
     readonly targetVersion: string;
     readonly zoltLockfilePath: string;
     readonly zoltManifestPath: string;
+    readonly zoltMode: 'project' | 'workspace';
     readonly zoltRoot: string;
 }
 

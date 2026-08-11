@@ -19,7 +19,7 @@ export async function prepareExactUpdateArtifact(input, dependencies = {}) {
         const afterUpdate = await copy.inspectChanges();
         const changedFiles = validateChanges(afterUpdate, result, input.target);
         const filesBeforeVerification = await readArtifactFiles(copy.workspace, changedFiles);
-        await (dependencies.verify ?? verifyLockedOffline)(input.binary, input.selection, zoltRoot, input.environment);
+        await (dependencies.verify ?? verifyLockedOffline)(input.binary, { mode: input.target.zoltMode }, zoltRoot, input.environment);
         const afterVerification = await copy.inspectChanges();
         requireSameChanges(afterUpdate, afterVerification);
         const files = await readArtifactFiles(copy.workspace, changedFiles);

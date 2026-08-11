@@ -24,7 +24,7 @@ import {
     outdatedReportV2,
     outdatedScopeV2,
     projectSelection,
-    TEST_TARGET_ID,
+    targetIdFor,
 } from './support/fixtures.js';
 
 const execute = promisify(execFile);
@@ -75,6 +75,25 @@ test('prepareExactUpdateArtifact routes a workspace target and verifies with --w
     assert.ok(invocations[0]?.includes('--target-id'));
     assert.ok(invocations[1]?.includes('--workspace'));
     assert.ok(invocations[1]?.includes('--offline'));
+});
+
+test('prepareExactUpdateArtifact uses the authoritative schema-v2 verification mode', async (context) => {
+    const fixture = await exactFixture(context, false);
+    let observedMode: 'project' | 'workspace' | undefined;
+    await prepareExactUpdateArtifact({
+        binary: fixture.binary,
+        environment: fixture.environment,
+        includePrereleases: false,
+        repository: fixture.repository,
+        selection: { ...fixture.selection, mode: 'workspace' },
+        target: fixture.target,
+    }, {
+        verify: async (_binary, mode) => {
+            observedMode = mode.mode;
+        },
+    });
+
+    assert.equal(observedMode, 'project');
 });
 
 test('prepareExactUpdateArtifact rejects unreported and out-of-bound file changes', async (context) => {
@@ -286,7 +305,7 @@ async function exactFixture(
     });
     const report = outdatedReportV2([outdatedScopeV2(
         workspace ? 'apps/api' : 'demo',
-        [outdatedEntryV2()],
+        [outdatedEntryV2({}, manifestPath)],
         { manifestPath },
     )]);
     const target = planUpdates(report, selection, actionInputs()).selected[0];
@@ -302,7 +321,7 @@ async function exactFixture(
             FAKE_ZOLT_MODE: mode,
             FAKE_ZOLT_SECTION: '[dependencies]',
             FAKE_ZOLT_SURFACE: 'dependency',
-            FAKE_ZOLT_TARGET_ID: TEST_TARGET_ID,
+            FAKE_ZOLT_TARGET_ID: targetIdFor({ manifestPath }),
             FAKE_ZOLT_TO: '1.1.0',
         },
         repository,

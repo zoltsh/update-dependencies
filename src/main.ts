@@ -48,7 +48,7 @@ export async function runAction(dependencies: ActionDependencies = {}): Promise<
         if (!inputs.dryRun) {
             throw actionError(
                 'ZOLT-WRITE-001',
-                'This implementation batch is planning-only. Set dry-run to true until Zolt publishes its canonical exact-target update contract.',
+                'Write mode remains closed until an immutable Zolt release containing the reviewed exact-target contract is checksum-pinned and the publication orchestrator is enabled. Set dry-run to true.',
             );
         }
         const target = resolveTarget(

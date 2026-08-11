@@ -1,4 +1,5 @@
 import type { ActionInputs } from '../../src/inputs.js';
+import { createZoltTargetId } from '../../src/zolt/target-id.js';
 import type {
     OutdatedEntryV1,
     OutdatedEntryV2,
@@ -10,7 +11,21 @@ import type {
     ZoltProjectSelection,
 } from '../../src/types.js';
 
-export const TEST_TARGET_ID = 'zt1_vcc-lFhiR4a_S4Vab01gw0_gcPDgShIiT8IdjXa5MhM';
+export const TEST_TARGET_ID = targetIdFor();
+
+export function targetIdFor(overrides: {
+    readonly identifier?: string;
+    readonly manifestPath?: string;
+    readonly section?: string;
+    readonly surface?: OutdatedEntryV2['surface'];
+} = {}): string {
+    return createZoltTargetId({
+        identifier: overrides.identifier ?? 'com.example:demo',
+        manifestPath: overrides.manifestPath ?? 'zolt.toml',
+        section: overrides.section ?? '[dependencies]',
+        surface: overrides.surface ?? 'dependency',
+    });
+}
 
 export function testTargetId(fill: number): string {
     return `zt1_${Buffer.alloc(32, fill).toString('base64url')}`;
@@ -51,13 +66,24 @@ export function outdatedEntry(overrides: Partial<OutdatedEntryV1> = {}): Outdate
     };
 }
 
-export function outdatedEntryV2(overrides: Partial<OutdatedEntryV2> = {}): OutdatedEntryV2 {
-    return {
+export function outdatedEntryV2(
+    overrides: Partial<OutdatedEntryV2> = {},
+    manifestPath = 'zolt.toml',
+): OutdatedEntryV2 {
+    const entry = {
         ...outdatedEntry(),
-        targetId: TEST_TARGET_ID,
         updateable: true,
         updateBlocker: null,
         ...overrides,
+    };
+    return {
+        ...entry,
+        targetId: overrides.targetId ?? targetIdFor({
+            identifier: entry.identifier,
+            manifestPath,
+            section: entry.section,
+            surface: entry.surface,
+        }),
     };
 }
 
@@ -70,14 +96,15 @@ export function outdatedScope(
 
 export function outdatedScopeV2(
     label = 'demo',
-    entries: readonly OutdatedEntryV2[] = [outdatedEntryV2()],
+    entries?: readonly OutdatedEntryV2[],
     paths: { readonly lockfilePath?: string; readonly manifestPath?: string } = {},
 ): OutdatedScopeV2 {
+    const manifestPath = paths.manifestPath ?? 'zolt.toml';
     return {
-        entries,
+        entries: entries ?? [outdatedEntryV2({}, manifestPath)],
         label,
         lockfilePath: paths.lockfilePath ?? 'zolt.lock',
-        manifestPath: paths.manifestPath ?? 'zolt.toml',
+        manifestPath,
     };
 }
 

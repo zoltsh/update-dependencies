@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { MAX_MACHINE_OUTPUT_BYTES, ZOLT_COMMAND_TIMEOUT_MS } from '../constants.js';
-import { actionError } from '../errors.js';
+import { actionError, UpdateDependenciesError } from '../errors.js';
 
 const BASELINE_ENVIRONMENT = [
     'HTTP_PROXY',
@@ -36,6 +36,28 @@ const DENIED_CREDENTIAL_NAMES = new Set([
 export interface ProcessResult {
     readonly stderr: string;
     readonly stdout: string;
+}
+
+
+export class ZoltCommandFailure extends UpdateDependenciesError {
+    readonly exitCode: number | null;
+    readonly signal: NodeJS.Signals | null;
+    readonly stderr: string;
+    readonly stdout: string;
+
+    constructor(
+        message: string,
+        result: ProcessResult,
+        exitCode: number | null,
+        signal: NodeJS.Signals | null,
+    ) {
+        super('ZOLT-COMMAND-002', message);
+        this.name = 'ZoltCommandFailure';
+        this.exitCode = exitCode;
+        this.signal = signal;
+        this.stderr = result.stderr;
+        this.stdout = result.stdout;
+    }
 }
 
 export interface ZoltEnvironment {
@@ -163,9 +185,11 @@ export async function runZolt(
                 return;
             }
             const detail = output.stderr.trim() || output.stdout.trim();
-            finish(actionError(
-                'ZOLT-COMMAND-002',
+            finish(new ZoltCommandFailure(
                 detail === '' ? `Zolt exited with ${code?.toString() ?? signal ?? 'an unknown status'}.` : detail,
+                output,
+                code,
+                signal,
             ));
         });
 

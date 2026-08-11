@@ -60,7 +60,7 @@ export async function prepareExactUpdateArtifact(
         const filesBeforeVerification = await readArtifactFiles(copy.workspace, changedFiles);
         await (dependencies.verify ?? verifyLockedOffline)(
             input.binary,
-            input.selection,
+            { mode: input.target.zoltMode },
             zoltRoot,
             input.environment,
         );

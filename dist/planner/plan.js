@@ -15,6 +15,7 @@ export function planUpdates(report, selection, inputs) {
     const blocked = [];
     const outsidePolicy = [];
     const seen = new Set();
+    const zoltMode = verificationMode(report, selection);
     for (const scope of report.scopes) {
         const paths = scopePaths(report.schemaVersion, selection, scope);
         for (const entry of scope.entries) {
@@ -73,6 +74,7 @@ export function planUpdates(report, selection, inputs) {
                 targetVersion: target.version,
                 zoltLockfilePath: paths.zoltLockfilePath,
                 zoltManifestPath: paths.zoltManifestPath,
+                zoltMode,
                 zoltRoot: selection.relativeRoot,
             }));
         }
@@ -91,6 +93,17 @@ export function planUpdates(report, selection, inputs) {
         outsidePolicy: Object.freeze(outsidePolicy),
         selected: Object.freeze(eligible.slice(0, inputs.openPullRequestsLimit)),
     });
+}
+function verificationMode(report, selection) {
+    if (selection.mode === 'project' || report.schemaVersion === 1)
+        return selection.mode;
+    const onlyScope = report.scopes.length === 1 ? report.scopes[0] : undefined;
+    if (onlyScope !== undefined
+        && onlyScope.manifestPath === 'zolt.toml'
+        && onlyScope.label !== '.') {
+        return 'project';
+    }
+    return 'workspace';
 }
 function selectTarget(entry, ceiling) {
     if (ceiling === 'patch') {

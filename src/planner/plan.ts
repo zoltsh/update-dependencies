@@ -49,6 +49,7 @@ export function planUpdates(
     const blocked: BlockedUpdate[] = [];
     const outsidePolicy: ExcludedUpdate[] = [];
     const seen = new Set<string>();
+    const zoltMode = verificationMode(report, selection);
 
     for (const scope of report.scopes) {
         const paths = scopePaths(report.schemaVersion, selection, scope);
@@ -107,6 +108,7 @@ export function planUpdates(
                 targetVersion: target.version,
                 zoltLockfilePath: paths.zoltLockfilePath,
                 zoltManifestPath: paths.zoltManifestPath,
+                zoltMode,
                 zoltRoot: selection.relativeRoot,
             }));
         }
@@ -126,6 +128,23 @@ export function planUpdates(
         outsidePolicy: Object.freeze(outsidePolicy),
         selected: Object.freeze(eligible.slice(0, inputs.openPullRequestsLimit)),
     });
+}
+
+
+function verificationMode(
+    report: OutdatedReport,
+    selection: ZoltProjectSelection,
+): 'project' | 'workspace' {
+    if (selection.mode === 'project' || report.schemaVersion === 1) return selection.mode;
+    const onlyScope = report.scopes.length === 1 ? report.scopes[0] as OutdatedScopeV2 | undefined : undefined;
+    if (
+        onlyScope !== undefined
+        && onlyScope.manifestPath === 'zolt.toml'
+        && onlyScope.label !== '.'
+    ) {
+        return 'project';
+    }
+    return 'workspace';
 }
 
 function selectTarget(

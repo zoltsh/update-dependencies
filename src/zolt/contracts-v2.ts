@@ -1,5 +1,6 @@
 import { isCanonicalDigestIdentifier } from '../identifiers.js';
 import { canonicalZoltManifestPath, canonicalZoltRootLockPath } from '../paths.js';
+import { canonicalTargetText, requireMatchingZoltTargetId } from './target-id.js';
 import type {
     ChangeClass,
     OutdatedCandidates,
@@ -35,6 +36,13 @@ const SURFACES = new Set<OutdatedSurface>([
     'versionAlias',
 ]);
 const CHANGE_CLASSES = new Set<ChangeClass>(['major', 'minor', 'patch']);
+const MUTABLE_SURFACES = new Set<OutdatedSurface>([
+    'annotationProcessor',
+    'dependency',
+    'dependencyConstraint',
+    'platform',
+    'versionAlias',
+]);
 const RAW_STATUSES = new Set(['current', 'unknown', 'update-available'] as const);
 const WARNING = new Set(['warning'] as const);
 const MAX_SCOPES = 10_000;
@@ -102,22 +110,28 @@ export function decodeTargetId(value: unknown, label: string): string {
 function decodeScope(value: unknown, index: number): OutdatedScopeV2 {
     const label = `scopes[${index.toString()}]`;
     const scope = exactObject(value, label, ['entries', 'label', 'lockfilePath', 'manifestPath']);
+    const manifestPath = canonicalZoltManifestPath(
+        nonEmptyString(scope.manifestPath, `${label}.manifestPath`),
+        `${label}.manifestPath`,
+    );
     return Object.freeze({
         entries: Object.freeze(boundedArray(scope.entries, `${label}.entries`, MAX_ENTRIES)
-            .map((entry, entryIndex) => decodeEntry(entry, index, entryIndex))),
+            .map((entry, entryIndex) => decodeEntry(entry, index, entryIndex, manifestPath))),
         label: nonEmptyString(scope.label, `${label}.label`),
         lockfilePath: canonicalZoltRootLockPath(
             nonEmptyString(scope.lockfilePath, `${label}.lockfilePath`),
             `${label}.lockfilePath`,
         ),
-        manifestPath: canonicalZoltManifestPath(
-            nonEmptyString(scope.manifestPath, `${label}.manifestPath`),
-            `${label}.manifestPath`,
-        ),
+        manifestPath,
     });
 }
 
-function decodeEntry(value: unknown, scopeIndex: number, entryIndex: number): OutdatedEntryV2 {
+function decodeEntry(
+    value: unknown,
+    scopeIndex: number,
+    entryIndex: number,
+    manifestPath: string,
+): OutdatedEntryV2 {
     const label = `scopes[${scopeIndex.toString()}].entries[${entryIndex.toString()}]`;
     const entry = exactObject(value, label, [
         'candidates',
@@ -139,6 +153,15 @@ function decodeEntry(value: unknown, scopeIndex: number, entryIndex: number): Ou
         'updateable',
     ]);
     const candidates = exactObject(entry.candidates, `${label}.candidates`, ['major', 'minor', 'patch']);
+    const surface = enumString(entry.surface, SURFACES, `${label}.surface`);
+    const identifier = canonicalTargetText(
+        nonEmptyString(entry.identifier, `${label}.identifier`),
+        `${label}.identifier`,
+    );
+    const section = canonicalTargetText(
+        nonEmptyString(entry.section, `${label}.section`),
+        `${label}.section`,
+    );
     const updateable = booleanValue(entry.updateable, `${label}.updateable`);
     const updateBlocker = nullableString(entry.updateBlocker, `${label}.updateBlocker`);
     if (updateable && updateBlocker !== null) {
@@ -147,14 +170,22 @@ function decodeEntry(value: unknown, scopeIndex: number, entryIndex: number): Ou
     if (!updateable && updateBlocker === null) {
         throw contractError(`${label}.updateBlocker must explain why the target is not updateable.`);
     }
+    if (updateable !== MUTABLE_SURFACES.has(surface)) {
+        throw contractError(`${label}.updateable does not match the mutability of ${surface}.`);
+    }
+    const targetId = requireMatchingZoltTargetId(
+        decodeTargetId(entry.targetId, `${label}.targetId`),
+        { identifier, manifestPath, section, surface },
+        `${label}.targetId`,
+    );
     return Object.freeze({
         candidates: decodeCandidates(candidates, `${label}.candidates`),
         current: nonEmptyString(entry.current, `${label}.current`),
         governs: stringArray(entry.governs, `${label}.governs`, MAX_ENTRIES),
-        identifier: nonEmptyString(entry.identifier, `${label}.identifier`),
+        identifier,
         members: stringArray(entry.members, `${label}.members`, MAX_ENTRIES),
         notes: stringArray(entry.notes, `${label}.notes`, MAX_ENTRIES),
-        section: nonEmptyString(entry.section, `${label}.section`),
+        section,
         selectedInMajor: nullableString(entry.selectedInMajor, `${label}.selectedInMajor`),
         selectedInMajorClass: nullableEnum(
             entry.selectedInMajorClass,
@@ -169,8 +200,8 @@ function decodeEntry(value: unknown, scopeIndex: number, entryIndex: number): Ou
         ),
         source: nullableString(entry.source, `${label}.source`),
         status: normalizeStatus(enumString(entry.status, RAW_STATUSES, `${label}.status`)),
-        surface: enumString(entry.surface, SURFACES, `${label}.surface`),
-        targetId: decodeTargetId(entry.targetId, `${label}.targetId`),
+        surface,
+        targetId,
         updateable,
         updateBlocker,
     });

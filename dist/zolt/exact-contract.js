@@ -1,6 +1,7 @@
-import { canonicalRelativeFile, canonicalZoltManifestPath, canonicalZoltRootLockPath, } from '../paths.js';
+import { canonicalZoltManifestPath, canonicalZoltRootLockPath, } from '../paths.js';
 import { booleanValue, boundedArray, contractError, decodeDiagnostic, enumString, exactObject, literal, nonEmptyString, nullableEnum, parseMachineDocument, stringArray, } from './contract-values.js';
 import { decodeTargetId } from './contracts-v2.js';
+import { canonicalTargetPath, canonicalTargetText, requireMatchingZoltTargetId, } from './target-id.js';
 const SURFACES = new Set([
     'annotationProcessor',
     'dependency',
@@ -12,7 +13,14 @@ const SURFACES = new Set([
     'versionAlias',
 ]);
 const CHANGE_CLASSES = new Set(['major', 'minor', 'patch']);
-const DIAGNOSTICS = new Set(['info', 'warning']);
+const MUTABLE_SURFACES = new Set([
+    'annotationProcessor',
+    'dependency',
+    'dependencyConstraint',
+    'platform',
+    'versionAlias',
+]);
+const DIAGNOSTICS = new Set(['warning']);
 const MAX_CHANGED_FILES = 16;
 const MAX_FAN_OUT = 100_000;
 export function decodeExactUpdateResult(document) {
@@ -66,13 +74,21 @@ function decodeTarget(value) {
         'updateable',
     ]);
     literal(target.updateable, true, 'target.updateable');
+    const manifestPath = canonicalZoltManifestPath(nonEmptyString(target.manifestPath, 'target.manifestPath'), 'target.manifestPath');
+    const surface = enumString(target.surface, SURFACES, 'target.surface');
+    if (!MUTABLE_SURFACES.has(surface)) {
+        throw contractError(`target.surface ${surface} is not mutable.`);
+    }
+    const identifier = canonicalTargetText(nonEmptyString(target.identifier, 'target.identifier'), 'target.identifier');
+    const section = canonicalTargetText(nonEmptyString(target.section, 'target.section'), 'target.section');
+    const targetId = requireMatchingZoltTargetId(decodeTargetId(target.targetId, 'target.targetId'), { identifier, manifestPath, section, surface }, 'target.targetId');
     return Object.freeze({
-        identifier: nonEmptyString(target.identifier, 'target.identifier'),
+        identifier,
         lockfilePath: canonicalZoltRootLockPath(nonEmptyString(target.lockfilePath, 'target.lockfilePath'), 'target.lockfilePath'),
-        manifestPath: canonicalZoltManifestPath(nonEmptyString(target.manifestPath, 'target.manifestPath'), 'target.manifestPath'),
-        section: nonEmptyString(target.section, 'target.section'),
-        surface: enumString(target.surface, SURFACES, 'target.surface'),
-        targetId: decodeTargetId(target.targetId, 'target.targetId'),
+        manifestPath,
+        section,
+        surface,
+        targetId,
         updateable: true,
     });
 }
@@ -85,7 +101,7 @@ function decodeChangedFiles(value) {
     return Object.freeze(paths);
 }
 function contractPath(value, label) {
-    return canonicalRelativeFile(nonEmptyString(value, label), label);
+    return canonicalTargetPath(nonEmptyString(value, label), label);
 }
 function validateEffects(result) {
     const allowedChangedFiles = [result.target.manifestPath, result.target.lockfilePath];

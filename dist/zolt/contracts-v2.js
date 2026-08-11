@@ -1,5 +1,6 @@
 import { isCanonicalDigestIdentifier } from '../identifiers.js';
 import { canonicalZoltManifestPath, canonicalZoltRootLockPath } from '../paths.js';
+import { canonicalTargetText, requireMatchingZoltTargetId } from './target-id.js';
 import { booleanValue, boundedArray, contractError, decodeDiagnostic, enumString, exactObject, literal, nonEmptyString, nullableEnum, nullableString, parseMachineDocument, stringArray, } from './contract-values.js';
 const SURFACES = new Set([
     'annotationProcessor',
@@ -12,6 +13,13 @@ const SURFACES = new Set([
     'versionAlias',
 ]);
 const CHANGE_CLASSES = new Set(['major', 'minor', 'patch']);
+const MUTABLE_SURFACES = new Set([
+    'annotationProcessor',
+    'dependency',
+    'dependencyConstraint',
+    'platform',
+    'versionAlias',
+]);
 const RAW_STATUSES = new Set(['current', 'unknown', 'update-available']);
 const WARNING = new Set(['warning']);
 const MAX_SCOPES = 10_000;
@@ -75,15 +83,16 @@ export function decodeTargetId(value, label) {
 function decodeScope(value, index) {
     const label = `scopes[${index.toString()}]`;
     const scope = exactObject(value, label, ['entries', 'label', 'lockfilePath', 'manifestPath']);
+    const manifestPath = canonicalZoltManifestPath(nonEmptyString(scope.manifestPath, `${label}.manifestPath`), `${label}.manifestPath`);
     return Object.freeze({
         entries: Object.freeze(boundedArray(scope.entries, `${label}.entries`, MAX_ENTRIES)
-            .map((entry, entryIndex) => decodeEntry(entry, index, entryIndex))),
+            .map((entry, entryIndex) => decodeEntry(entry, index, entryIndex, manifestPath))),
         label: nonEmptyString(scope.label, `${label}.label`),
         lockfilePath: canonicalZoltRootLockPath(nonEmptyString(scope.lockfilePath, `${label}.lockfilePath`), `${label}.lockfilePath`),
-        manifestPath: canonicalZoltManifestPath(nonEmptyString(scope.manifestPath, `${label}.manifestPath`), `${label}.manifestPath`),
+        manifestPath,
     });
 }
-function decodeEntry(value, scopeIndex, entryIndex) {
+function decodeEntry(value, scopeIndex, entryIndex, manifestPath) {
     const label = `scopes[${scopeIndex.toString()}].entries[${entryIndex.toString()}]`;
     const entry = exactObject(value, label, [
         'candidates',
@@ -105,6 +114,9 @@ function decodeEntry(value, scopeIndex, entryIndex) {
         'updateable',
     ]);
     const candidates = exactObject(entry.candidates, `${label}.candidates`, ['major', 'minor', 'patch']);
+    const surface = enumString(entry.surface, SURFACES, `${label}.surface`);
+    const identifier = canonicalTargetText(nonEmptyString(entry.identifier, `${label}.identifier`), `${label}.identifier`);
+    const section = canonicalTargetText(nonEmptyString(entry.section, `${label}.section`), `${label}.section`);
     const updateable = booleanValue(entry.updateable, `${label}.updateable`);
     const updateBlocker = nullableString(entry.updateBlocker, `${label}.updateBlocker`);
     if (updateable && updateBlocker !== null) {
@@ -113,22 +125,26 @@ function decodeEntry(value, scopeIndex, entryIndex) {
     if (!updateable && updateBlocker === null) {
         throw contractError(`${label}.updateBlocker must explain why the target is not updateable.`);
     }
+    if (updateable !== MUTABLE_SURFACES.has(surface)) {
+        throw contractError(`${label}.updateable does not match the mutability of ${surface}.`);
+    }
+    const targetId = requireMatchingZoltTargetId(decodeTargetId(entry.targetId, `${label}.targetId`), { identifier, manifestPath, section, surface }, `${label}.targetId`);
     return Object.freeze({
         candidates: decodeCandidates(candidates, `${label}.candidates`),
         current: nonEmptyString(entry.current, `${label}.current`),
         governs: stringArray(entry.governs, `${label}.governs`, MAX_ENTRIES),
-        identifier: nonEmptyString(entry.identifier, `${label}.identifier`),
+        identifier,
         members: stringArray(entry.members, `${label}.members`, MAX_ENTRIES),
         notes: stringArray(entry.notes, `${label}.notes`, MAX_ENTRIES),
-        section: nonEmptyString(entry.section, `${label}.section`),
+        section,
         selectedInMajor: nullableString(entry.selectedInMajor, `${label}.selectedInMajor`),
         selectedInMajorClass: nullableEnum(entry.selectedInMajorClass, CHANGE_CLASSES, `${label}.selectedInMajorClass`),
         selectedLatest: nullableString(entry.selectedLatest, `${label}.selectedLatest`),
         selectedLatestClass: nullableEnum(entry.selectedLatestClass, CHANGE_CLASSES, `${label}.selectedLatestClass`),
         source: nullableString(entry.source, `${label}.source`),
         status: normalizeStatus(enumString(entry.status, RAW_STATUSES, `${label}.status`)),
-        surface: enumString(entry.surface, SURFACES, `${label}.surface`),
-        targetId: decodeTargetId(entry.targetId, `${label}.targetId`),
+        surface,
+        targetId,
         updateable,
         updateBlocker,
     });

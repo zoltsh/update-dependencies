@@ -6,13 +6,13 @@ import { TEST_TARGET_ID } from './support/fixtures.js';
 
 test('managed target identity has fixed repository-root vectors', () => {
     assert.deepEqual(managedTargetIdentity('.', TEST_TARGET_ID), {
-        branchHash: 'a1890258a9',
-        managedId: 'zud1_oYkCWKnkLzvubLFLA44hKxOEY6A_UYxR_IBs4Y4Ce00',
+        branchHash: 'f69492e69e',
+        managedId: 'zud1_9pSS5p436s4oqrne8583mmMGD7OvHRZTS_WenPeQkMo',
         targetId: TEST_TARGET_ID,
     });
     assert.deepEqual(managedTargetIdentity('services/api', TEST_TARGET_ID), {
-        branchHash: '4cf2eff3c4',
-        managedId: 'zud1_TPLv88QHKQDcCBJ-h6hrv7_zLlV3pqDd_gBRfRg6c9g',
+        branchHash: '5596e12d16',
+        managedId: 'zud1_VZbhLRaw-AjkT05rtyrv_20ZXill1EaKJZ5VFx7KX5o',
         targetId: TEST_TARGET_ID,
     });
 });
