@@ -26,10 +26,11 @@
 <br />
 
 > [!IMPORTANT]
-> This first implementation batch is **planning-only**. It produces the exact
-> update branches and pull requests it would manage, but deliberately refuses
-> `dry-run: false` until Zolt publishes its canonical exact-target update
-> contract. Pin the action to a reviewed full commit SHA.
+> The public Action is still **planning-only**. This second implementation batch
+> includes a schema-v2 exact-update executor and managed-PR reconciliation
+> kernel, but the pinned Zolt release still speaks schema v1 and GitHub
+> publication remains deliberately disabled. Pin the action to a reviewed full
+> commit SHA.
 
 ## Use
 
@@ -75,26 +76,38 @@ checks.
 
 ## What it does
 
-The action currently implements the complete read and planning half of the
-update pipeline:
+The public entrypoint performs the complete read and planning path:
 
-1. It validates that the run belongs to the repository and its default branch.
-2. It materializes tracked blobs from the exact `GITHUB_SHA` into a private
-   directory. Dirty checkout files are ignored.
-3. It downloads one embedded Zolt release, verifies its SHA-256, validates its
-   archive layout, extracts it privately, and verifies its exact version.
-4. It gives Zolt a minimal environment plus only the repository credential
-   variables named by `registry-env`.
-5. It runs `zolt outdated --format json` and strictly decodes the stable v1
-   schema. Unknown fields, schemas, surfaces, and statuses fail closed.
-6. It applies the update ceiling and pull-request limit, preserving version
-   alias fan-out as one logical target.
-7. It derives provisional stable target identities, managed branch names,
-   pull-request titles, ownership markers, and summaries.
-8. It refuses write mode before any repository mutation or GitHub branch call.
+1. Validate the repository, event, default branch, ref, and full commit SHA.
+2. Reconstruct tracked blobs from that exact commit in a private immutable view;
+   dirty checkout files are ignored.
+3. Download one embedded Zolt release, verify SHA-256 and archive structure,
+   extract it privately, and verify its exact version.
+4. Give Zolt a minimal environment plus only credential variables explicitly
+   named by `registry-env`.
+5. Decode the machine-readable outdated schema declared beside the pinned Zolt
+   release. The current release declares schema v1; schema v2 is already
+   implemented but cannot be selected until a matching Zolt build is pinned.
+6. Apply update policy and deterministic ordering while preserving alias fan-out.
+7. Render target identities, branch names, PR previews, outputs, and summaries.
+8. Reject publication before any checkout mutation or GitHub branch call.
 
-The pinned Zolt version is the same workspace-capable release used by
-`zoltsh/submit-dependencies` in this implementation batch.
+The contract-ready kernel additionally provides:
+
+- strict schema-v2 `zt1_` target and canonical path decoding;
+- repository-scoped `zud1_` managed identities;
+- one fresh exact-commit extraction per update target;
+- exact-target invocation and strict result validation;
+- actual changed-file and artifact-byte verification;
+- post-update `resolve --locked --offline` verification;
+- strict managed markers with destination, base, and managed-head identity;
+- pure unchanged/refresh/create/close/defer/block reconciliation that never
+  overwrites a human-modified branch;
+- a bounded GitHub.com Git-data and pull-request client that creates blobs,
+  trees, merge-safe commits, and non-force managed ref updates.
+
+Those components are process- and adapter-tested but not wired to public write
+mode yet.
 
 ## Inputs
 
@@ -162,14 +175,12 @@ environment variables do not reach Zolt.
 
 ## Planning identities
 
-The current `pzt1_…` target identifiers and `zolt/update/…` branch names are
-explicitly provisional. They are derived from the canonical manifest path,
-surface, section, and identifier. The destination version is deliberately not
-part of the identity, allowing a future managed pull request to refresh in
-place.
+Schema-v1 `pzt1_…` target and `pzud1_…` managed identities are explicitly
+provisional. A schema-v2 release supplies the authoritative `zt1_…` target; the
+Action derives `zud1_…` from the selected Zolt root plus that ID. Destination
+versions are deliberately excluded so a managed PR can refresh in place.
 
-Zolt—not this action—must ultimately issue the authoritative target ID. See
-[Zolt automation contract](./docs/ZOLT_CONTRACT.md).
+See [Zolt automation contract](./docs/ZOLT_CONTRACT.md).
 
 ## Runners
 
@@ -199,7 +210,9 @@ scripts/check
 ```
 
 `check` verifies types, repository style and security rules, all tests, the
-committed runtime tree, and Action metadata. CI additionally runs `actionlint`,
+committed runtime tree, and Action metadata. The suite includes fake-Zolt
+process-boundary tests for exact standalone/workspace updates and pure managed
+PR reconciliation tests. CI additionally runs `actionlint`,
 `npm audit`, dependency review, and the supported runner matrix.
 
 The committed `dist/` directory is the Action runtime. This batch has no runtime

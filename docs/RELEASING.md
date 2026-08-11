@@ -8,14 +8,22 @@ publish an npm package.
 1. Set `ACTION_VERSION` in `src/constants.ts` to the immutable version tag
    without the leading `v`.
 2. Update `src/generated/zolt-release.ts` with one published Zolt version, its
-   source commit, and all four archive checksums.
-3. Run `npm ci`, `npm audit`, `npm run bundle`, and `scripts/check`.
+   source commit, four archive checksums, and the exact outdated schema version
+   that release supports.
+3. Run `npm ci`, `npm audit`, `npm run bundle`, and `scripts/check` under Node 24.
 4. Run `actionlint` against every workflow.
 5. Confirm the supported runner matrix and Windows rejection tests pass.
-6. Run the planning canary for standalone, modern workspace, legacy workspace,
-   alias fan-out, and private repository fixtures.
-7. Review the source diff, complete `dist/` diff, and `dist/licenses.txt`.
-8. Confirm `main` is clean and protected.
+6. Run planning canaries for standalone, modern/legacy workspace, alias fan-out,
+   and private repositories.
+7. When schema v2 is selected, run real exact-update artifact canaries plus the
+   managed-marker, reconciliation, and GitHub API adapter suites even if
+   publication remains closed.
+8. Review the source diff, complete `dist/` diff, and `dist/licenses.txt`.
+9. Confirm `main` is clean and protected.
+
+Changing `ZOLT_OUTDATED_SCHEMA_VERSION` from `1` to `2` is a release-critical
+contract change. Do not make it without pinning the exact Zolt build whose
+fixtures and live executor canaries passed.
 
 ## Publish
 
@@ -32,9 +40,12 @@ artifact.
 ## Verify
 
 - Confirm the tag resolves to the reviewed signed commit.
-- Run a consumer workflow pinned to that full commit SHA.
-- Confirm the expected Zolt version and deterministic `plan` output.
-- Confirm a second identical run produces byte-equivalent plan JSON.
-- Confirm `dry-run: false`, pull-request events, non-default branches, Windows,
-  malformed Zolt JSON, bad archive checksums, and missing private credentials
-  fail closed without leaking sensitive values.
+- Run a consumer workflow pinned to that full SHA.
+- Confirm the expected Zolt version, schema selector, and deterministic plan.
+- Confirm a repeated run is byte-equivalent.
+- Confirm write mode remains rejected unless that release explicitly enables
+  the reviewed publication orchestrator.
+- Confirm pull-request events, non-default branches, Windows, malformed machine
+  documents, bad archive checksums, missing credentials, unexpected update
+  files, marker collisions, and human-modified heads fail closed without
+  leaking sensitive values.

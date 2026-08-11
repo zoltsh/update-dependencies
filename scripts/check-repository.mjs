@@ -28,7 +28,7 @@ if (packageJson.private !== true) throw new Error('The Action package must remai
 if (packageJson.type !== 'module') throw new Error('The committed runtime must remain ESM.');
 if (packageJson.engines?.node !== '>=24') throw new Error('package.json must require Node 24 or newer.');
 if (packageJson.dependencies !== undefined && Object.keys(packageJson.dependencies).length !== 0) {
-    throw new Error('The first implementation batch must not have runtime npm dependencies.');
+    throw new Error('The Action runtime must not have npm dependencies.');
 }
 for (const script of ['preinstall', 'install', 'postinstall', 'prepare']) {
     if (packageJson.scripts?.[script] !== undefined) throw new Error(`Forbidden lifecycle script ${script}.`);

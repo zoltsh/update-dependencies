@@ -1,35 +1,60 @@
 # Canary
 
-The canary verifies the Action against real GitHub event and runner behavior
-without enabling writes.
+The current canary verifies real GitHub event and runner behavior without
+opening the publication gate.
 
-## Fixtures
+## Planning fixtures
 
 Keep small repositories for:
 
-1. A standalone Zolt project with one patch and one minor update.
+1. A standalone project with patch and minor updates.
 2. A modern workspace with updates in two members and one root lock.
 3. A legacy `zolt-workspace.toml` workspace.
 4. A shared `[versions]` alias with multi-coordinate fan-out.
-5. A private basic-auth Maven repository.
-6. A private bearer-token Maven repository.
-7. A dependency whose metadata lookup is unavailable.
-8. A generated-tool literal that Zolt reports but cannot currently mutate.
-
-## Run
+5. Private basic-auth and bearer-token Maven repositories.
+6. Unavailable metadata.
+7. A generated-tool literal that is reportable but not writable.
 
 Pin checkout and this Action to reviewed full commit SHAs. Run through
-`workflow_dispatch` with `dry-run: true`. Store the `plan` output as a workflow
-artifact and compare it with the reviewed fixture.
+`workflow_dispatch` with `dry-run: true`; retain the deterministic `plan` output
+for comparison.
 
-## Require
+Require correct Zolt version/checksum, paths, update ordering, alias fan-out,
+deferral, blockers, redaction, and byte-identical repeated plans. Require
+`dry-run: false` to fail before branch or pull-request operations.
 
-- The exact expected Zolt version and target checksum are logged.
-- The selected manifest and root lock paths are correct.
-- Patch updates precede minor updates, which precede major updates.
-- Alias fan-out remains one target.
-- The pull-request limit defers rather than drops targets.
-- Unknown discovery and unsupported literal tooling are blocked.
-- Private credentials are masked and absent from logs, outputs, and summaries.
-- A second run against the same commit produces identical plan JSON.
-- `dry-run: false` fails before any branch or pull-request operation.
+## Contract-ready executor canary
+
+After a published Zolt release declares schema v2, run the executor before
+enabling publication:
+
+- exact standalone dependency;
+- nested modern-workspace member plus root lock;
+- legacy workspace;
+- root member `.`;
+- shared alias fan-out;
+- private basic and bearer repositories;
+- stale/unknown target;
+- failed resolution with zero file effects;
+- unexpected file and mode-change rejection;
+- locked/offline verification with no second mutation.
+
+For each target, compare the prepared artifact against the original commit and
+require exactly the expected manifest and root-lock bytes.
+
+## Publication canary
+
+The write gate may open only after a separate canary covers:
+
+1. create one managed PR;
+2. identical rerun is a no-op;
+3. newer target refreshes the same branch/PR;
+4. base branch satisfies the update and closes the obsolete PR;
+5. human branch commit blocks refresh;
+6. duplicate managed markers block both PRs;
+7. PR-limit capacity is calculated after safe closes and existing refreshes;
+8. default branch advancement aborts before ref publication;
+9. a human commit racing a refresh causes the non-force ref update to fail;
+10. partial GitHub API failure reports every already-visible write;
+11. private credentials and GitHub tokens remain absent from logs and Zolt's
+    process environment.
