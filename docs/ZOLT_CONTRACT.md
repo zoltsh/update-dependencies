@@ -1,8 +1,8 @@
 # Zolt automation contract
 
 The public Action pins immutable Zolt release
-`0.1.0-zap.20260810.ae6532ef804c`, built from reviewed source commit
-`ae6532ef804c6347c6b1e72742216b9443c6c288`, and selects its schema-v2
+`0.1.0-zap.20260813.486974e1a11b`, built from reviewed source commit
+`486974e1a11b39d2bea5cb0a3621befa4ebfd160`, and selects its schema-v2
 exact-target contract. All four archive digests are embedded and independently
 verified; CI also runs the contract suite against every released platform
 binary. Write mode accepts only authoritative targets from this contract.
@@ -56,6 +56,11 @@ Every entry retains the schema-v1 fields and adds:
   "notes": []
 }
 ```
+
+Workspace-root `[platforms]` entries are authoritative targets in a distinct
+`workspace-root` scope. Their manifest is the root policy file and their lock is
+the aggregate workspace lock, so exact updates change the root policy and
+regenerate `zolt.lock` without touching member manifests.
 
 `targetId` is deterministic, independent of current/candidate versions, and
 scoped to one mutation root. The Action does not merely validate its syntax: it

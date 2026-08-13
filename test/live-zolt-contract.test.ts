@@ -142,6 +142,7 @@ live('production executor prepares verified artifacts across supported project l
         await executorProject(context, 'executor-modern', 'modern'),
         await executorProject(context, 'executor-legacy', 'legacy'),
         await executorProject(context, 'executor-root-member', 'root-member'),
+        await executorProject(context, 'executor-root-platform', 'workspace-root-platform'),
         await executorProject(context, 'executor-alias', 'alias'),
     ] as const;
 
@@ -181,6 +182,11 @@ live('production executor prepares verified artifacts across supported project l
         assert.equal(artifact.result.resolved, true, layout.name);
         assert.equal(artifact.target.authoritativeTarget, true, layout.name);
         if (layout.name === 'alias') assert.equal(artifact.target.fanOut.length, 2);
+        if (layout.name === 'workspace-root-platform') {
+            assert.equal(artifact.target.scope, 'workspace-root');
+            assert.equal(artifact.target.surface, 'platform');
+            assert.equal(artifact.target.zoltManifestPath, 'zolt.toml');
+        }
         await repository.verify();
     }
 });
@@ -362,7 +368,7 @@ interface ExecutorProject {
 async function executorProject(
     context: TestContext,
     name: string,
-    kind: 'alias' | 'legacy' | 'modern' | 'root-member' | 'standalone',
+    kind: 'alias' | 'legacy' | 'modern' | 'root-member' | 'standalone' | 'workspace-root-platform',
 ): Promise<ExecutorProject> {
     const root = await temporaryRoot(context, name);
     if (kind === 'standalone') {
@@ -425,6 +431,39 @@ central = "https://repo.maven.apache.org/maven2"
             changedFiles: ['zolt.toml', 'zolt.lock'],
             directory: '.',
             identifier: 'com.google.guava:guava',
+            name: kind,
+            root,
+            workspace: true,
+        };
+    }
+    if (kind === 'workspace-root-platform') {
+        const member = join(root, 'apps', 'api');
+        await mkdir(member, { recursive: true });
+        await writeFile(join(root, 'zolt.toml'), `
+[workspace]
+name = "root-platform"
+members = ["apps/api"]
+
+[repositories]
+central = "https://repo.maven.apache.org/maven2"
+
+[platforms]
+"org.junit:junit-bom" = "5.10.2"
+`, 'utf8');
+        await writeFile(join(member, 'zolt.toml'), `
+[project]
+name = "api"
+version = "0.1.0"
+group = "com.example"
+java = "21"
+
+[dependencies]
+"org.junit.jupiter:junit-jupiter-api" = {}
+`, 'utf8');
+        return {
+            changedFiles: ['zolt.toml', 'zolt.lock'],
+            directory: 'apps/api',
+            identifier: 'org.junit:junit-bom',
             name: kind,
             root,
             workspace: true,
