@@ -129,7 +129,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: zoltsh/zolt
-          ref: ae6532ef804c6347c6b1e72742216b9443c6c288
+          ref: 486974e1a11b39d2bea5cb0a3621befa4ebfd160
           path: zolt-source
           persist-credentials: false
 
@@ -161,7 +161,7 @@ jobs:
       - name: Verify exact-target source contract
         env:
           ZOLT_LIVE_BINARY: ${{ github.workspace }}/zolt-source/scripts/run-zolt-built
-          ZOLT_LIVE_SOURCE_COMMIT: ae6532ef804c6347c6b1e72742216b9443c6c288
+          ZOLT_LIVE_SOURCE_COMMIT: 486974e1a11b39d2bea5cb0a3621befa4ebfd160
         run: node --test --test-reporter spec dist-test/test/live-zolt-contract.test.js
 
   windows-negative:
