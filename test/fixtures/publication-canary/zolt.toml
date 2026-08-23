@@ -5,4 +5,4 @@ group = "com.zoltsh"
 java = 21
 
 [dependencies]
-"com.google.guava:guava" = "31.0-jre"
+"com.google.guava:guava" = "33.7.1-jre"
