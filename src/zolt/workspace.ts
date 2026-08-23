@@ -24,7 +24,7 @@ export async function selectZoltProject(
     if (workspaceMode === 'true') {
         throw new UpdateDependenciesError(
             'ZOLT-WORKSPACE-001',
-            `No Zolt workspace was found from ${canonicalRepository.directoryInput}. Expected zolt.toml with [workspace] or zolt-workspace.toml.`,
+            `No Zolt workspace was found from ${canonicalRepository.directoryInput}. Expected zolt.toml with [workspace].`,
         );
     }
     return standalone(canonicalRepository, canonicalRepository.directory);
@@ -56,16 +56,8 @@ async function resolveRepositoryPaths(repository: RepositoryView): Promise<Repos
 async function discoverWorkspace(repository: RepositoryView): Promise<WorkspaceLocation | undefined> {
     let current = repository.directory;
     while (contained(repository.workspace, current)) {
-        const legacy = await regularFileInside(resolve(current, 'zolt-workspace.toml'), repository.workspace);
         const rootConfig = await regularFileInside(resolve(current, 'zolt.toml'), repository.workspace);
         const modern = rootConfig === undefined ? false : await containsWorkspaceTable(rootConfig);
-        if (legacy !== undefined && modern) {
-            throw new UpdateDependenciesError(
-                'ZOLT-WORKSPACE-007',
-                `Workspace at ${repositoryRelativeRoot(repository.workspace, current)} declares both zolt-workspace.toml and [workspace] in zolt.toml.`,
-            );
-        }
-        if (legacy !== undefined) return { manifest: legacy, root: current };
         if (modern && rootConfig !== undefined) return { manifest: rootConfig, root: current };
         if (current === repository.workspace) break;
         current = dirname(current);

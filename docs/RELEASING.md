@@ -32,8 +32,8 @@ fixtures and live executor canaries passed.
 1. Create an OpenPGP-signed annotated version tag on the reviewed commit.
 2. Push the immutable tag.
 3. Create a GitHub release from the tag.
-4. Move compatibility tags such as `v0` and `v0.1` only after the immutable
-   versioned release is public and verified.
+4. Move compatibility tags such as `v0` and the matching minor only after the
+   immutable versioned release is public and verified.
 5. Update consuming workflows to the release commit's full SHA.
 
 Do not rebuild `dist/` while tagging. The reviewed commit is the release

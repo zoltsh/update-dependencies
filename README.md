@@ -129,9 +129,8 @@ limited to 16 MiB.
 `workspace: auto` searches upward for a workspace. `workspace: true` requires
 one. `workspace: false` updates only the selected project.
 
-Both modern workspaces declared in `zolt.toml` and legacy
-`zolt-workspace.toml` files are supported. Root members and shared `[versions]`
-aliases remain one managed update target.
+Workspaces use the final `[workspace]` domain in the root `zolt.toml`. Root
+members and shared `[versions]` aliases remain one managed update target.
 
 ## Outputs
 
@@ -157,8 +156,8 @@ supported.
 ## Compatibility
 
 The action uses Zolt's authoritative outdated and exact-update schema 2. It
-bundles Zolt `0.1.0-zap.20260810.ae6532ef804c` from source commit
-[`ae6532ef804c6347c6b1e72742216b9443c6c288`](https://github.com/zoltsh/zolt/commit/ae6532ef804c6347c6b1e72742216b9443c6c288).
+bundles Zolt `0.1.0-zap.20260823.0ea7fe1473b4` from source commit
+[`0ea7fe1473b4b852e62c452a04c2518d5e7e93ff`](https://github.com/zoltsh/zolt/commit/0ea7fe1473b4b852e62c452a04c2518d5e7e93ff).
 
 ## Read more
 
