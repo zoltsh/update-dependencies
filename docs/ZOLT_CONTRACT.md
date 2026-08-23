@@ -1,8 +1,8 @@
 # Zolt automation contract
 
 The public Action pins immutable Zolt release
-`0.1.0-zap.20260813.486974e1a11b`, built from reviewed source commit
-`486974e1a11b39d2bea5cb0a3621befa4ebfd160`, and selects its schema-v2
+`0.1.0-zap.20260823.0ea7fe1473b4`, built from reviewed source commit
+`0ea7fe1473b4b852e62c452a04c2518d5e7e93ff`, and selects its schema-v2
 exact-target contract. All four archive digests are embedded and independently
 verified; CI also runs the contract suite against every released platform
 binary. Write mode accepts only authoritative targets from this contract.

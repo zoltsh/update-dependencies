@@ -41,17 +41,16 @@ test('createRepositoryView rejects revision expressions at its own boundary', as
     );
 });
 
-test('selectZoltProject reports both workspace formats at the repository root', async (context) => {
+test('selectZoltProject ignores the retired workspace filename', async (context) => {
     const root = await mkdtemp(join(tmpdir(), 'zolt-dual-workspace-test-'));
     context.after(async () => rm(root, { force: true, recursive: true }));
-    await writeFile(join(root, 'zolt.toml'), '[workspace]\nmembers = []\n', 'utf8');
+    await writeFile(join(root, 'zolt.toml'), '[project]\nname = "demo"\n', 'utf8');
     await writeFile(join(root, 'zolt-workspace.toml'), 'members = []\n', 'utf8');
-    await writeFile(join(root, 'zolt.lock'), 'version = 5\n', 'utf8');
+    await writeFile(join(root, 'zolt.lock'), 'version = 7\n', 'utf8');
 
-    await assert.rejects(
-        selectZoltProject(repositoryView({ directory: root, workspace: root }), 'auto'),
-        /Workspace at \. declares both/u,
-    );
+    const selected = await selectZoltProject(repositoryView({ directory: root, workspace: root }), 'auto');
+    assert.equal(selected.mode, 'project');
+    assert.equal(selected.manifestPath, 'zolt.toml');
 });
 
 test('missing registry credentials fail before the pinned release is downloaded', async () => {

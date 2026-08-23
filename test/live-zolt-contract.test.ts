@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { basename, join } from 'node:path';
+import { join } from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { promisify } from 'node:util';
 
@@ -82,7 +82,9 @@ live('reviewed Zolt routes workspace targets and preserves root-relative paths',
     await writeFile(join(root, 'zolt.toml'), `
 [workspace]
 name = "platform"
-members = ["apps/api"]
+
+[workspace.members]
+include = ["apps/api"]
 `, 'utf8');
     await writeProject(join(member, 'zolt.toml'), 'com.example:lib', '1.0.0');
 
@@ -97,20 +99,6 @@ members = ["apps/api"]
     const result = await exact(context, root, entry.targetId, '1.1.0');
     assert.deepEqual(result.changedFiles, ['apps/api/zolt.toml']);
     assert.match(await readFile(join(member, 'zolt.toml'), 'utf8'), /"1\.1\.0"/u);
-});
-
-live('reviewed Zolt treats a retained empty workspace domain as standalone', async (context) => {
-    const root = await project(context, 'retained-empty');
-    await writeFile(join(root, 'zolt.toml'), `${await readFile(join(root, 'zolt.toml'), 'utf8')}
-[workspace]
-name = "retained"
-members = []
-`, 'utf8');
-
-    const report = await outdated(context, root);
-    assert.equal(report.scopes.length, 1);
-    assert.equal(report.scopes[0]?.label, basename(root));
-    assert.equal(report.scopes[0]?.manifestPath, 'zolt.toml');
 });
 
 live('reviewed Zolt emits selected-schema failures on stdout', async (context) => {
@@ -139,8 +127,7 @@ live('production executor prepares verified artifacts across supported project l
     const environment = await isolatedEnvironment(context);
     const layouts = [
         await executorProject(context, 'executor-standalone', 'standalone'),
-        await executorProject(context, 'executor-modern', 'modern'),
-        await executorProject(context, 'executor-legacy', 'legacy'),
+        await executorProject(context, 'executor-workspace', 'workspace'),
         await executorProject(context, 'executor-root-member', 'root-member'),
         await executorProject(context, 'executor-root-platform', 'workspace-root-platform'),
         await executorProject(context, 'executor-alias', 'alias'),
@@ -346,10 +333,7 @@ async function writeProject(path: string, identifier: string, version: string): 
 name = "demo"
 version = "0.1.0"
 group = "com.example"
-java = "21"
-
-[repositories]
-central = "https://repo.maven.apache.org/maven2"
+java = 21
 
 [dependencies]
 "${identifier}" = "${version}"
@@ -368,7 +352,7 @@ interface ExecutorProject {
 async function executorProject(
     context: TestContext,
     name: string,
-    kind: 'alias' | 'legacy' | 'modern' | 'root-member' | 'standalone' | 'workspace-root-platform',
+    kind: 'alias' | 'root-member' | 'standalone' | 'workspace' | 'workspace-root-platform',
 ): Promise<ExecutorProject> {
     const root = await temporaryRoot(context, name);
     if (kind === 'standalone') {
@@ -388,10 +372,7 @@ async function executorProject(
 name = "alias-demo"
 version = "0.1.0"
 group = "com.example"
-java = "21"
-
-[repositories]
-central = "https://repo.maven.apache.org/maven2"
+java = 21
 
 [versions]
 junit = "5.8.0"
@@ -415,14 +396,13 @@ junit = "5.8.0"
 name = "root-member"
 version = "0.1.0"
 group = "com.example"
-java = "21"
+java = 21
 
 [workspace]
 name = "root-member"
-members = ["."]
 
-[repositories]
-central = "https://repo.maven.apache.org/maven2"
+[workspace.members]
+include = ["."]
 
 [dependencies]
 "com.google.guava:guava" = "31.0-jre"
@@ -442,10 +422,9 @@ central = "https://repo.maven.apache.org/maven2"
         await writeFile(join(root, 'zolt.toml'), `
 [workspace]
 name = "root-platform"
-members = ["apps/api"]
 
-[repositories]
-central = "https://repo.maven.apache.org/maven2"
+[workspace.members]
+include = ["apps/api"]
 
 [platforms]
 "org.junit:junit-bom" = "5.10.2"
@@ -455,10 +434,10 @@ central = "https://repo.maven.apache.org/maven2"
 name = "api"
 version = "0.1.0"
 group = "com.example"
-java = "21"
+java = 21
 
 [dependencies]
-"org.junit.jupiter:junit-jupiter-api" = {}
+"org.junit.jupiter:junit-jupiter-api" = { managed = true }
 `, 'utf8');
         return {
             changedFiles: ['zolt.toml', 'zolt.lock'],
@@ -471,11 +450,12 @@ java = "21"
     }
     const member = join(root, 'apps', 'api');
     await mkdir(member, { recursive: true });
-    const workspaceFile = kind === 'legacy' ? 'zolt-workspace.toml' : 'zolt.toml';
-    await writeFile(join(root, workspaceFile), `
+    await writeFile(join(root, 'zolt.toml'), `
 [workspace]
-name = "${kind}-workspace"
-members = ["apps/api"]
+name = "workspace"
+
+[workspace.members]
+include = ["apps/api"]
 `, 'utf8');
     await writeProject(join(member, 'zolt.toml'), 'com.google.guava:guava', '31.0-jre');
     return {
@@ -513,12 +493,13 @@ async function writePrivateProject(
 name = "private-demo"
 version = "0.1.0"
 group = "com.example"
-java = "21"
+java = 21
 
-[repositories]
-private = { url = "${repositoryUrl}", credentials = "private" }
+[repositories.private]
+url = "${repositoryUrl}"
+credentials = "private"
 
-[repositoryCredentials.private]
+[credentials.private]
 ${credentials}
 
 [dependencies]

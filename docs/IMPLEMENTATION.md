@@ -4,7 +4,7 @@ The Action implements the complete managed update path:
 
 - reconstruct and validate the exact triggering commit;
 - download and verify one immutable Zolt schema-v2 release;
-- discover standalone, modern-workspace, and legacy-workspace targets;
+- discover standalone and final-format workspace targets;
 - apply policy, selectors, prerelease handling, and the concurrent PR limit;
 - prepare every exact update in an independent repository copy;
 - accept only the expected manifest and root-lock changes;
@@ -21,7 +21,7 @@ Human-modified branches, duplicate ownership markers, unexpected files,
 default-branch races, and non-fast-forward ref updates fail closed.
 
 Source-built and released Zolt binaries share the same contract suite. The
-released-binary executor matrix covers standalone projects, modern and legacy
+released-binary executor matrix covers standalone projects, final-format
 workspaces, root members, alias fan-out, and allowlisted basic and bearer
 credentials. Reconciliation and API tests cover idempotency, refresh, close,
 ownership conflicts, races, and partial failures.
