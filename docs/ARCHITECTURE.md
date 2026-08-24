@@ -29,7 +29,7 @@ trusted event + exact GITHUB_SHA
 ```
 
 The pinned Zolt release is built from reviewed source commit
-`0ea7fe1473b4b852e62c452a04c2518d5e7e93ff` and declares outdated schema v2.
+`dd9b14a2df1d8aebe044a205c258aab2ceedf9f6` and declares outdated schema v2.
 Production metadata contains the four independently verified archive digests.
 CI both builds that exact source and runs the same exact-target contract suite
 against each released platform binary.

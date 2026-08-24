@@ -168,7 +168,11 @@ live('production executor prepares verified artifacts across supported project l
         assert.deepEqual(artifact.files.map(({ path }) => path), layout.changedFiles, layout.name);
         assert.equal(artifact.result.resolved, true, layout.name);
         assert.equal(artifact.target.authoritativeTarget, true, layout.name);
-        if (layout.name === 'alias') assert.equal(artifact.target.fanOut.length, 2);
+        if (layout.name === 'alias') {
+            assert.equal(artifact.target.fanOut.length, 2);
+            assert.equal(artifact.target.scope, 'workspace-root');
+            assert.equal(artifact.target.zoltManifestPath, 'zolt.toml');
+        }
         if (layout.name === 'workspace-root-platform') {
             assert.equal(artifact.target.scope, 'workspace-root');
             assert.equal(artifact.target.surface, 'platform');
@@ -367,27 +371,47 @@ async function executorProject(
         };
     }
     if (kind === 'alias') {
+        const api = join(root, 'apps', 'api');
+        const engine = join(root, 'modules', 'engine');
+        await mkdir(api, { recursive: true });
+        await mkdir(engine, { recursive: true });
         await writeFile(join(root, 'zolt.toml'), `
-[project]
+[workspace]
 name = "alias-demo"
+
+[workspace.members]
+include = ["apps/api", "modules/engine"]
+
+[versions]
+junit = "5.8.0"
+`, 'utf8');
+        await writeFile(join(api, 'zolt.toml'), `
+[project]
+name = "api"
 version = "0.1.0"
 group = "com.example"
 java = 21
 
-[versions]
-junit = "5.8.0"
-
 [dependencies]
 "org.junit.jupiter:junit-jupiter-api" = { versionRef = "junit" }
+`, 'utf8');
+        await writeFile(join(engine, 'zolt.toml'), `
+[project]
+name = "engine"
+version = "0.1.0"
+group = "com.example"
+java = 21
+
+[dependencies.test]
 "org.junit.jupiter:junit-jupiter-engine" = { versionRef = "junit" }
 `, 'utf8');
         return {
             changedFiles: ['zolt.toml', 'zolt.lock'],
-            directory: '.',
+            directory: 'apps/api',
             identifier: 'junit',
             name: kind,
             root,
-            workspace: false,
+            workspace: true,
         };
     }
     if (kind === 'root-member') {

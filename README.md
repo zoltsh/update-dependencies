@@ -156,8 +156,8 @@ supported.
 ## Compatibility
 
 The action uses Zolt's authoritative outdated and exact-update schema 2. It
-bundles Zolt `0.1.0-zap.20260823.0ea7fe1473b4` from source commit
-[`0ea7fe1473b4b852e62c452a04c2518d5e7e93ff`](https://github.com/zoltsh/zolt/commit/0ea7fe1473b4b852e62c452a04c2518d5e7e93ff).
+bundles Zolt `0.1.0-zap.20260824.dd9b14a2df1d` from source commit
+[`dd9b14a2df1d8aebe044a205c258aab2ceedf9f6`](https://github.com/zoltsh/zolt/commit/dd9b14a2df1d8aebe044a205c258aab2ceedf9f6).
 
 ## Read more
 

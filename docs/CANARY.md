@@ -5,7 +5,7 @@ CI validates both sides of the Action's trust boundary.
 ## Zolt contract
 
 The source-contract job builds reviewed Zolt commit
-`0ea7fe1473b4b852e62c452a04c2518d5e7e93ff`. The runtime matrix downloads every
+`dd9b14a2df1d8aebe044a205c258aab2ceedf9f6`. The runtime matrix downloads every
 pinned platform archive and verifies its checksum, version, and schema-v2
 behavior.
 

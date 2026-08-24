@@ -1,15 +1,15 @@
 // Keep this version, source commit, URLs, and all four digests aligned with the
 // immutable Zolt release channel used by submit-dependencies.
-export const ZOLT_VERSION = '0.1.0-zap.20260823.0ea7fe1473b4';
-export const ZOLT_SOURCE_COMMIT = '0ea7fe1473b4b852e62c452a04c2518d5e7e93ff';
+export const ZOLT_VERSION = '0.1.0-zap.20260824.dd9b14a2df1d';
+export const ZOLT_SOURCE_COMMIT = 'dd9b14a2df1d8aebe044a205c258aab2ceedf9f6';
 export const ZOLT_OUTDATED_SCHEMA_VERSION = 2;
 const tag = `zolt-zap-${ZOLT_VERSION}`;
 const base = `https://github.com/zoltsh/releases/releases/download/${tag}`;
 export const ZOLT_RELEASE = {
-    'linux-arm64': artifact('linux-arm64', 'bf8a49aab74d2cc05f01f044b15d7b6b8f8263dc8aefe9168fbd827c3a6253c4'),
-    'linux-x64': artifact('linux-x64', '11c55e4117d55d1776c5eddca801b8e5f65cc9b16f2c5a8313b9f473547fdd57'),
-    'macos-arm64': artifact('macos-arm64', '7bca990eea0f22a4f4b354c22ac3109d89818ed969781d43e0cc6442b428d661'),
-    'macos-x64': artifact('macos-x64', '1e5dc1502ebd3c4dc5672db1fd5e557cae7c894ae28dd5dc30b1569ccd47b41f'),
+    'linux-arm64': artifact('linux-arm64', 'f07219c88466197cfebcd971db1fcebe4686c5d33c2be3a2f2b5b3ea5865fce1'),
+    'linux-x64': artifact('linux-x64', '24fc6c3dd5c432c26168fdcd2e5892e4f15efe55aecf75eea9e9d7a1ebedb8dd'),
+    'macos-arm64': artifact('macos-arm64', 'cebb38e5b58ddeea3db54d855fc43455ea9c1ff91c4ac1976961ba053555b532'),
+    'macos-x64': artifact('macos-x64', 'eed40b183c18edbe7210a1e523ae3f6ddef718918355cf48329e59cc0fddbe02'),
 };
 function artifact(target, sha256) {
     const archive = `zolt-${ZOLT_VERSION}-${target}.tar.gz`;
